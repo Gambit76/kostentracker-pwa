@@ -53,6 +53,7 @@ Der mobile Kostentracker für das Google Sheet (**Reiter: „Familie Variable Ko
 | Echter Offline-Betrieb & PWA Cache | ✅ | Service Worker aktiv, Warteschlange puffert ohne Netz |
 | PWA-Assets & Icons | ✅ | SVG, 192px, 512px und Apple Touch Icon generiert |
 | Git-Repository initialisiert | ✅ | Clean initial commit erfolgt |
+| GitHub Remote & Push | ✅ | Erfolgreich auf https://github.com/Gambit76/kostentracker-pwa gepusht |
 
 ---
 
@@ -71,3 +72,4 @@ Der mobile Kostentracker für das Google Sheet (**Reiter: „Familie Variable Ko
 - **2026-09-10 10:06:26** – Git Repository initialisiert, Security-Check verifiziert (kein Leak von `config.js`).
 - **2026-09-10 10:06:33** – Ausführliches `README.md` mit bebilderter Schritt-für-Schritt-Anleitung dokumentiert.
 - **2026-09-10 10:06:34** – Initialer Commit im Git-Repository erstellt.
+- **2026-09-10 15:39:27** – Remote `origin` hinzugefügt und Branch `main` erfolgreich zu GitHub (`Gambit76/kostentracker-pwa`) gepusht.
