@@ -2,8 +2,10 @@ const CACHE_NAME = 'kostentracker-v2026';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './tracker.html',
   './app.js',
   './manifest.json',
+  './tracker-manifest.json',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
