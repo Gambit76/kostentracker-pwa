@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const cfgApiUrl = document.getElementById('cfg-api-url');
   const cfgSecretToken = document.getElementById('cfg-secret-token');
   const shareLinkBtn = document.getElementById('share-link-btn');
+  const pasteClipboardBtn = document.getElementById('paste-clipboard-btn');
+  const forceReloadBtn = document.getElementById('force-reload-btn');
 
   // Auto-Setup via URL Parameters (e.g. ?api=https://script.google.com/...&token=...)
   try {
@@ -481,11 +483,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Service Worker Registration
+  // Paste from Clipboard Button
+  if (pasteClipboardBtn) {
+    pasteClipboardBtn.addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            cfgApiUrl.value = text.trim();
+            showToast('URL eingefügt!', '📋');
+          } else {
+            showToast('Zwischenablage ist leer.', '⚠️');
+          }
+        } else {
+          showToast('Bitte URL manuell in das Feld einfügen.', 'ℹ️');
+          cfgApiUrl.focus();
+        }
+      } catch (err) {
+        showToast('Zugriff auf Zwischenablage verweigert.', '⚠️');
+        cfgApiUrl.focus();
+      }
+    });
+  }
+
+  // Force Reload & Cache Purge Button
+  if (forceReloadBtn) {
+    forceReloadBtn.addEventListener('click', async () => {
+      showToast('Cache wird geleert...', '🔄');
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      }
+      setTimeout(() => {
+        window.location.reload(true);
+      }, 500);
+    });
+  }
+
+  // Service Worker Registration (v2)
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(() => console.log('Service Worker registriert.'))
+      navigator.serviceWorker.register('./sw.js?v=2')
+        .then((reg) => {
+          reg.update(); // Force check for sw update
+          console.log('Service Worker v2 aktiv.');
+        })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
   }

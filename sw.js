@@ -1,9 +1,8 @@
-const CACHE_NAME = 'kostentracker-v1';
+const CACHE_NAME = 'kostentracker-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './app.js',
-  './config.js',
   './manifest.json',
   './icons/icon.svg',
   './icons/icon-192.png',
@@ -11,22 +10,24 @@ const ASSETS_TO_CACHE = [
   './icons/apple-touch-icon.png'
 ];
 
-// Installation: Cache App Shell
+// Installation: Skip waiting to activate immediately
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
-// Activation: Clean up old caches
+// Activation: Purge all old caches (including v1)
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Alten PWA-Cache gelöscht:', key);
             return caches.delete(key);
           }
         })
@@ -35,33 +36,39 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Cache-first for local static assets, Network-only for API calls
+// Fetch: Network-First for HTML & JS so updates are instant; Cache fallback for offline
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
 
-  // API Calls to Google Script should never be served from Service Worker cache
+  // API calls to Google Script are never cached
   if (requestUrl.hostname.includes('script.google.com') || requestUrl.pathname.includes('/exec')) {
     return;
   }
 
+  // Network-First Strategy:
+  // 1. Try to fetch the latest version from network
+  // 2. If successful, update the cache
+  // 3. If offline / fetch fails, serve from cache
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch in background to update cache (Stale-While-Revalidate)
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, networkResponse);
-            });
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && event.request.method === 'GET') {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
           }
-        }).catch(() => {});
-        return cachedResponse;
-      }
-      return fetch(event.request);
-    }).catch(() => {
-      if (event.request.mode === 'navigate') {
-        return caches.match('./index.html');
-      }
-    })
+          if (event.request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+        });
+      })
   );
 });

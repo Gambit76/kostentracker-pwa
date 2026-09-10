@@ -1,5 +1,6 @@
 # Configuration & Secrets
 config.js
+Code.gs
 .env
 .env.local
 *.secret

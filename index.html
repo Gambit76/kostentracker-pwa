@@ -764,6 +764,7 @@
         <small style="color: var(--text-subtle); font-size: 0.75rem; margin-top: 4px;">
           Erhalte diese URL nach dem Bereitstellen von <code>Code.gs</code> in Google Sheets.
         </small>
+        <button type="button" class="btn-secondary" id="paste-clipboard-btn" style="margin-top: 6px; padding: 7px 10px; font-size: 0.8rem; align-self: flex-start;">📋 Aus Zwischenablage einfügen</button>
       </div>
 
       <div class="form-group">
@@ -777,6 +778,7 @@
 
       <button type="button" class="btn-secondary" id="test-connection-btn">Verbindung testen</button>
       <button type="button" class="btn-secondary" id="share-link-btn" style="display: none; border-color: #10b981; color: #34d399;">🔗 Setup-Link für Partnerin kopieren</button>
+      <button type="button" class="btn-secondary" id="force-reload-btn" style="color: var(--text-subtle); font-size: 0.75rem; padding: 6px; border: none; background: transparent;">🔄 App-Cache leeren & aktualisieren</button>
     </div>
     <div class="dialog-footer">
       <button type="button" class="submit-btn" id="save-settings-btn" style="margin-top: 0;">Speichern</button>
@@ -785,7 +787,7 @@
 
   <!-- Scripts -->
   <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 
 </body>
 </html>
