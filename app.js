@@ -526,13 +526,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Service Worker Registration (v2)
+  // Service Worker Registration (v2026)
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=2')
+      navigator.serviceWorker.register('./sw.js?v=2026')
         .then((reg) => {
           reg.update(); // Force check for sw update
-          console.log('Service Worker v2 aktiv.');
+          console.log('Service Worker v2026 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
