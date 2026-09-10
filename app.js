@@ -39,6 +39,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const testConnectionBtn = document.getElementById('test-connection-btn');
   const cfgApiUrl = document.getElementById('cfg-api-url');
   const cfgSecretToken = document.getElementById('cfg-secret-token');
+  const shareLinkBtn = document.getElementById('share-link-btn');
+
+  // Auto-Setup via URL Parameters (e.g. ?api=https://script.google.com/...&token=...)
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const apiParam = urlParams.get('api');
+    const tokenParam = urlParams.get('token');
+    if (apiParam) {
+      localStorage.setItem('kostentracker_api_url', apiParam.trim());
+      if (tokenParam !== null) {
+        localStorage.setItem('kostentracker_secret_token', tokenParam.trim());
+      }
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  } catch (paramErr) {
+    console.warn('URL params parsing failed:', paramErr);
+  }
 
   // State
   let currentPayer = localStorage.getItem('kostentracker_payer') || 'Sascha';
@@ -376,10 +393,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Settings Dialog Logic
+  function updateShareButton() {
+    const config = getApiConfig();
+    if (shareLinkBtn) {
+      shareLinkBtn.style.display = (config.apiUrl && config.apiUrl.startsWith('http')) ? 'block' : 'none';
+    }
+  }
+
   openSettingsBtn.addEventListener('click', () => {
     const config = getApiConfig();
     cfgApiUrl.value = config.apiUrl;
     cfgSecretToken.value = config.secretToken;
+    updateShareButton();
     settingsDialog.showModal();
   });
 
@@ -390,17 +415,49 @@ document.addEventListener('DOMContentLoaded', () => {
   saveSettingsBtn.addEventListener('click', () => {
     const url = cfgApiUrl.value.trim();
     const token = cfgSecretToken.value.trim();
+
+    if (!url) {
+      showToast('Bitte die Web-App-URL einfügen!', '⚠️', 'error', 4000);
+      cfgApiUrl.focus();
+      return;
+    }
+
+    if (!url.startsWith('https://script.google.com/')) {
+      showToast('URL muss mit https://script.google.com/ beginnen.', '⚠️', 'error', 4500);
+      cfgApiUrl.focus();
+      return;
+    }
+
     localStorage.setItem('kostentracker_api_url', url);
     localStorage.setItem('kostentracker_secret_token', token);
     settingsDialog.close();
     showToast('Einstellungen gespeichert!', '⚙️');
     updateConnectionStatus();
+    updateShareButton();
   });
+
+  if (shareLinkBtn) {
+    shareLinkBtn.addEventListener('click', () => {
+      const config = getApiConfig();
+      if (!config.apiUrl) return;
+      const shareUrl = `${window.location.origin}${window.location.pathname}?api=${encodeURIComponent(config.apiUrl)}${config.secretToken ? '&token=' + encodeURIComponent(config.secretToken) : ''}`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          showToast('Link kopiert! Per WhatsApp an Sonja senden.', '📋', 'success', 4500);
+        }).catch(() => {
+          prompt('Persönlicher Einrichtungs-Link für Sonja:', shareUrl);
+        });
+      } else {
+        prompt('Persönlicher Einrichtungs-Link für Sonja:', shareUrl);
+      }
+    });
+  }
 
   testConnectionBtn.addEventListener('click', async () => {
     const url = cfgApiUrl.value.trim();
     if (!url) {
       showToast('Bitte zuerst eine URL eintragen.', '⚠️', 'error');
+      cfgApiUrl.focus();
       return;
     }
 
@@ -412,6 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await resp.json();
       if (data && data.status === 'ok') {
         showToast('Verbindung erfolgreich! Sheet: ' + data.sheet, '✅', 'success', 4000);
+        updateShareButton();
       } else {
         showToast('Antwort erhalten, aber unerwartetes Format.', '⚠️', 'warning', 4000);
       }
