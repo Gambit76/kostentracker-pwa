@@ -1,0 +1,14 @@
+# Configuration & Secrets
+config.js
+.env
+.env.local
+*.secret
+
+# OS & Temp
+.DS_Store
+Thumbs.db
+*.log
+
+# Dependencies (if used later)
+node_modules/
+dist/

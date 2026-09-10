@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Kostentracker">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="Haushaltsausgaben schnell und einfach in Google Sheets erfassen">
+
+  <title>Kostentracker</title>
+
+  <!-- PWA Manifest & Icons -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #151d30;
+      --surface-elevated: #1e293b;
+      --surface-border: #334155;
+      --primary: #10b981;
+      --primary-hover: #059669;
+      --primary-glow: rgba(16, 185, 129, 0.25);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-subtle: #64748b;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --radius-lg: 20px;
+      --radius-md: 14px;
+      --radius-sm: 10px;
+      --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px) 16px;
+      overflow-x: hidden;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 4px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background: var(--surface);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--surface-border);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--primary);
+    }
+
+    .status-dot.offline {
+      background: var(--warning);
+    }
+
+    .settings-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.2s, transform 0.15s;
+    }
+
+    .settings-btn:active {
+      transform: scale(0.92);
+      color: var(--text);
+    }
+
+    /* Person / Payer Switcher */
+    .payer-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      background: var(--surface);
+      padding: 5px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--surface-border);
+    }
+
+    .payer-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .payer-btn.active {
+      background: var(--surface-elevated);
+      color: var(--text);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      border: 1px solid #475569;
+    }
+
+    .payer-btn.active .avatar {
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #334155;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+
+    /* Offline Queue Alert */
+    .offline-alert {
+      display: none;
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 0.82rem;
+      line-height: 1.4;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .offline-alert.show {
+      display: flex;
+    }
+
+    /* Form Container */
+    .expense-form {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      padding: 20px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Amount Section */
+    .amount-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 0 10px 0;
+    }
+
+    .field-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .amount-input-box {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      width: 100%;
+      position: relative;
+    }
+
+    .amount-input {
+      width: 100%;
+      max-width: 260px;
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: var(--text);
+      background: transparent;
+      border: none;
+      outline: none;
+      text-align: center;
+      letter-spacing: -0.03em;
+      padding: 4px 0;
+    }
+
+    .amount-input::placeholder {
+      color: var(--text-subtle);
+      opacity: 0.4;
+    }
+
+    .currency-symbol {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-left: -20px;
+      pointer-events: none;
+    }
+
+    /* Input Field Styling */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .text-input {
+      background: var(--surface-elevated);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      font-size: 1.05rem;
+      padding: 13px 14px;
+      border-radius: var(--radius-md);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      font-family: inherit;
+      width: 100%;
+    }
+
+    .text-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    .text-input::placeholder {
+      color: var(--text-subtle);
+    }
+
+    /* Quick Selection Chips */
+    .chips-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .chip-btn {
+      background: var(--surface-elevated);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      padding: 7px 11px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .chip-btn:active {
+      transform: scale(0.94);
+      background: #334155;
+      color: var(--text);
+    }
+
+    .chip-btn.selected {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: var(--primary);
+      color: #34d399;
+      font-weight: 600;
+    }
+
+    /* Date and Comment */
+    .date-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .date-input {
+      background: var(--surface-elevated);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      font-size: 0.95rem;
+      padding: 11px 12px;
+      border-radius: var(--radius-md);
+      outline: none;
+      flex: 1;
+      font-family: inherit;
+    }
+
+    .date-shortcut-btn {
+      background: var(--surface-elevated);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      padding: 11px 12px;
+      border-radius: var(--radius-md);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .date-shortcut-btn:active {
+      background: #334155;
+      color: var(--text);
+    }
+
+    /* Collapsible Comment */
+    .collapsible-comment {
+      border-top: 1px dashed var(--surface-border);
+      padding-top: 12px;
+    }
+
+    .comment-toggle {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 0;
+    }
+
+    .comment-toggle:hover {
+      color: var(--text);
+    }
+
+    .comment-box {
+      margin-top: 8px;
+      display: none;
+    }
+
+    .comment-box.open {
+      display: block;
+    }
+
+    /* Submit Button */
+    .submit-btn {
+      width: 100%;
+      background: var(--primary);
+      color: #ffffff;
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 16px;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 18px var(--primary-glow);
+      transition: all 0.2s ease;
+      margin-top: 6px;
+      min-height: 56px;
+    }
+
+    .submit-btn:hover {
+      background: var(--primary-hover);
+    }
+
+    .submit-btn:active {
+      transform: scale(0.98);
+    }
+
+    .submit-btn:disabled {
+      background: #334155;
+      color: #64748b;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #ffffff;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Notification Banner */
+    .toast {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 24px) + 20px);
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #1e293b;
+      color: #ffffff;
+      padding: 12px 20px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--surface-border);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 100;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      border-color: var(--primary);
+    }
+
+    .toast.error {
+      border-color: var(--danger);
+      background: #3f1d24;
+    }
+
+    /* Recent entries drawer */
+    .recent-section {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+    }
+
+    .recent-header {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .recent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .recent-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+      padding: 8px 10px;
+      background: var(--surface-elevated);
+      border-radius: var(--radius-sm);
+    }
+
+    .recent-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .recent-item-pos {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .recent-item-meta {
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+    }
+
+    .recent-item-amount {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    /* Settings Dialog */
+    dialog {
+      position: fixed;
+      inset: 0;
+      margin: auto;
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius-lg);
+      color: var(--text);
+      padding: 24px;
+      width: 90%;
+      max-width: 400px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+    }
+
+    .dialog-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .dialog-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .close-dialog-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+    }
+
+    .dialog-content {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .dialog-footer {
+      display: flex;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .btn-secondary {
+      background: var(--surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--surface-border);
+      padding: 12px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      cursor: pointer;
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Top Bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <img src="icons/icon.svg" alt="App Icon" class="brand-icon">
+        <span class="brand-title">Kostentracker</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div class="connection-status" id="connection-badge">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="connection-text">Bereit</span>
+        </div>
+        <button class="settings-btn" id="open-settings-btn" title="Einstellungen" aria-label="Einstellungen">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Person / Payer Switcher -->
+    <section class="payer-toggle" aria-label="Bezahlt von">
+      <button type="button" class="payer-btn" id="btn-sascha" data-payer="Sascha">
+        <span class="avatar">S</span>
+        <span>Sascha</span>
+      </button>
+      <button type="button" class="payer-btn" id="btn-sonja" data-payer="Sonja">
+        <span class="avatar">S</span>
+        <span>Sonja</span>
+      </button>
+    </section>
+
+    <!-- Offline Sync Banner -->
+    <aside class="offline-alert" id="offline-banner">
+      <span id="offline-message">📡 Offline-Modus aktiv</span>
+      <button type="button" id="sync-now-btn" style="background: none; border: 1px solid #fbbf24; color: #fbbf24; border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; cursor: pointer;">Jetzt synchronisieren</button>
+    </aside>
+
+    <!-- Main Expense Form -->
+    <form class="expense-form" id="expense-form" autocomplete="off">
+      
+      <!-- Amount -->
+      <div class="amount-wrapper">
+        <label for="amount-input" class="field-label">Betrag</label>
+        <div class="amount-input-box">
+          <input 
+            type="text" 
+            id="amount-input" 
+            class="amount-input" 
+            placeholder="0,00" 
+            inputmode="decimal" 
+            pattern="[0-9]*[.,]?[0-9]*" 
+            required 
+            autofocus>
+          <span class="currency-symbol">€</span>
+        </div>
+      </div>
+
+      <!-- Position / Wo -->
+      <div class="form-group">
+        <label for="position-input" class="field-label">Wo / Wofür</label>
+        <input 
+          type="text" 
+          id="position-input" 
+          class="text-input" 
+          placeholder="z. B. Edeka, Tanken, Bäckerei..." 
+          required>
+        
+        <!-- Quick Selection Chips -->
+        <div class="chips-container" id="quick-chips">
+          <button type="button" class="chip-btn" data-pos="Edeka">🛒 Edeka</button>
+          <button type="button" class="chip-btn" data-pos="Rewe">🛒 Rewe</button>
+          <button type="button" class="chip-btn" data-pos="Bäckerei">🥐 Bäckerei</button>
+          <button type="button" class="chip-btn" data-pos="Tanken">⛽ Tanken</button>
+          <button type="button" class="chip-btn" data-pos="DM Kinder">👶 DM Kinder</button>
+          <button type="button" class="chip-btn" data-pos="Apotheke">💊 Apotheke</button>
+          <button type="button" class="chip-btn" data-pos="Essen">🍽️ Essen</button>
+          <button type="button" class="chip-btn" data-pos="Kiosk">📰 Kiosk</button>
+          <button type="button" class="chip-btn" data-pos="Café">☕ Café</button>
+        </div>
+      </div>
+
+      <!-- Date -->
+      <div class="form-group">
+        <label for="date-input" class="field-label">Datum</label>
+        <div class="date-row">
+          <input type="date" id="date-input" class="date-input" required>
+          <button type="button" class="date-shortcut-btn" id="btn-today">Heute</button>
+          <button type="button" class="date-shortcut-btn" id="btn-yesterday">Gestern</button>
+        </div>
+      </div>
+
+      <!-- Optional Comment (Collapsible) -->
+      <div class="collapsible-comment">
+        <button type="button" class="comment-toggle" id="toggle-comment-btn">
+          <span id="comment-toggle-icon">＋</span> Kommentar hinzufügen (optional)
+        </button>
+        <div class="comment-box" id="comment-box">
+          <input 
+            type="text" 
+            id="comment-input" 
+            class="text-input" 
+            placeholder="z. B. +Post, Gärtner, Notiz...">
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <button type="submit" class="submit-btn" id="submit-btn">
+        <span class="spinner" id="btn-spinner"></span>
+        <span id="btn-label">Eintrag speichern</span>
+      </button>
+
+    </form>
+
+    <!-- Recent Entries Card -->
+    <section class="recent-section">
+      <div class="recent-header">
+        <span>Zuletzt erfasst</span>
+        <span id="recent-count">0 Einträge</span>
+      </div>
+      <div class="recent-list" id="recent-list">
+        <div style="color: var(--text-subtle); font-size: 0.82rem; text-align: center; padding: 10px;">
+          Noch keine Einträge in dieser Sitzung.
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast">
+    <span id="toast-icon">✅</span>
+    <span id="toast-text">Erfolgreich gespeichert!</span>
+  </div>
+
+  <!-- Settings Dialog -->
+  <dialog id="settings-dialog">
+    <div class="dialog-header">
+      <h3 class="dialog-title">⚙️ Einstellungen</h3>
+      <button type="button" class="close-dialog-btn" id="close-settings-btn">&times;</button>
+    </div>
+    <div class="dialog-content">
+      <div class="form-group">
+        <label for="cfg-api-url" class="field-label">Google Apps Script Web-App URL</label>
+        <input 
+          type="url" 
+          id="cfg-api-url" 
+          class="text-input" 
+          placeholder="https://script.google.com/macros/s/.../exec">
+        <small style="color: var(--text-subtle); font-size: 0.75rem; margin-top: 4px;">
+          Erhalte diese URL nach dem Bereitstellen von <code>Code.gs</code> in Google Sheets.
+        </small>
+      </div>
+
+      <div class="form-group">
+        <label for="cfg-secret-token" class="field-label">Sicherheits-Token (optional)</label>
+        <input 
+          type="text" 
+          id="cfg-secret-token" 
+          class="text-input" 
+          placeholder="Leer lassen, falls in Code.gs nicht gesetzt">
+      </div>
+
+      <button type="button" class="btn-secondary" id="test-connection-btn">Verbindung testen</button>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="submit-btn" id="save-settings-btn" style="margin-top: 0;">Speichern</button>
+    </div>
+  </dialog>
+
+  <!-- Scripts -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
