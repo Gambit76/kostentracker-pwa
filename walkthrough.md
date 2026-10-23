@@ -56,6 +56,11 @@ Der mobile Kostentracker für das Google Sheet (**Reiter: „Familie Variable Ko
 | GitHub Remote & Push | ✅ | Erfolgreich auf https://github.com/Gambit76/kostentracker-pwa gepusht |
 | PWA Cache-Upgrade (v2) | ✅ | Network-First Strategie, Cache-Buster & Zwischenablage-Button aktiv |
 | Code.gs aus GitHub entfernt | ✅ | Code.gs gelöscht & in .gitignore gesperrt (100% Zero-Leak) |
+| v3: Typ Familie/Persönlich | ✅ | Spalte F, eigener Umschalter, lila Persönlich-Modus |
+| v3: Pivot-Filter | ✅ | „Familie Übersicht var. Kosten“ ignoriert Typ = Persönlich |
+| v3: Verlauf, Bearbeiten, Löschen | ✅ | Daten aus dem Sheet, Zeilenprüfung vor jeder Änderung |
+| v3: Monatsübersicht & Ausgleich | ✅ | 50/50-Ausgleich, persönliche Kosten, Trend |
+| v3: Vorschläge, Normalisierung, Token, Betragsfix | ✅ | Token Pflicht, „1.234,56“ korrekt |
 
 ---
 
@@ -76,3 +81,4 @@ Der mobile Kostentracker für das Google Sheet (**Reiter: „Familie Variable Ko
 - **2026-09-10 10:06:34** – Initialer Commit im Git-Repository erstellt.
 - **2026-09-10 15:39:27** – Remote `origin` hinzugefügt und Branch `main` erfolgreich zu GitHub (`Gambit76/kostentracker-pwa`) gepusht.
 - **2026-09-10 16:11:19** – PWA auf `v2` aktualisiert (Network-First, Cache-Purge, Clipboard-Paste); `Code.gs` vollständig aus GitHub entfernt.
+- **2026-10-23** – v3.0: Typ-Spalte (Familie/Persönlich) mit Umschalter; Pivot „Familie Übersicht var. Kosten“ um Spalte F erweitert und auf Typ ≠ Persönlich gefiltert (per Testzeilen verifiziert); `Code.gs` mit Lese-, Bearbeiten- und Lösch-Endpunkten, Token-Pflicht, Positions-Normalisierung, Betragsparser und Doppelbuchungs-Schutz; App mit Tabs Erfassen/Verlauf/Übersicht; Service-Worker-Cache auf v3.0.

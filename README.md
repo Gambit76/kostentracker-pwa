@@ -16,6 +16,24 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
+## 🆕 Version 3.0 (Oktober 2026)
+- **Typ-Umschalter Familie / Persönlich:** Schreibt in Spalte F „Typ“. Persönliche Kosten erscheinen in Lila und zählen **nicht** in der Pivot „Familie Übersicht var. Kosten“ (Filter: `Typ <> Persönlich`, leere Zellen = Familie).
+- **Verlauf aus dem Sheet:** Letzte 150 Einträge, filterbar nach Typ, Person und Suchbegriff. Antippen öffnet **Bearbeiten / Löschen** (Zeile wird vorher geprüft, damit nie die falsche Zeile geändert wird).
+- **Monatsübersicht:** Familienkosten je Person, Gesamt, **Ausgleich bei 50/50**, persönliche Kosten, Ø der letzten 12 Monate und 6-Monats-Trend.
+- **Vorschläge & Chips aus echten Daten:** Die 10 häufigsten Positionen (je Typ, letzte 24 Monate) werden zu Schnellwahl-Chips, alle weiteren als Autovervollständigung.
+- **Einheitliche Positionen:** „Edeka und Bäcker“, „Rewe+Bäcker“ usw. werden beim Speichern zu „Edeka + Bäckerei“ / „Rewe + Bäckerei“ (gleiche Regeln in `app.js` und `Code.gs`).
+- **Sicherheits-Token Pflicht** für Lesen und Schreiben. **Betragsfix:** „1.234,56“ wird korrekt als 1.234,56 € gespeichert.
+- **Doppelbuchungs-Schutz:** Einträge aus der Offline-Warteschlange tragen eine ID und werden nie doppelt geschrieben.
+
+### Update von v2 auf v3
+1. `Code.gs` (lokal, nicht im Git) komplett in den Apps-Script-Editor kopieren und speichern.
+2. **Bereitstellen ➔ Bereitstellungen verwalten ➔ Stift ➔ Version: „Neue Version“ ➔ Bereitstellen.** (Nicht „Neue Bereitstellung“ – sonst ändert sich die URL.)
+3. Frontend pushen (`git push`), GitHub Pages aktualisiert sich nach ~1 Minute.
+4. In der App ⚙️ öffnen ➔ Token aus `Code.gs` (`SECRET_TOKEN`) eintragen ➔ „Verbindung testen“ ➔ Speichern.
+5. „Setup-Link für Partnerin kopieren“ und an Sonja schicken – der Link enthält URL **und** Token.
+
+---
+
 ## 🚀 Schritt-für-Schritt Einrichtung
 
 ### Schritt 1: Google Apps Script Backend einrichten
@@ -25,7 +43,7 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 3. Lösche den vorhandenen Dummy-Code im Editor.
 4. Kopiere den gesamten Inhalt aus der Datei [`Code.gs`](./Code.gs) und füge ihn ein.
 5. Klicke auf das **Speichern-Symbol** (Diskette) oder drücke `Cmd + S`.
-6. *(Optionaler Test)*: Wähle oben in der Funktionsliste `testAppend` aus und klicke auf **Ausführen**. Bestätige beim ersten Mal die Berechtigungsabfrage deines Google-Kontos. Prüfe im Sheet, ob eine Testzeile angehängt wurde.
+6. *(Optionaler Test)*: Wähle oben in der Funktionsliste `testReadData` aus und klicke auf **Ausführen**. Bestätige beim ersten Mal die Berechtigungsabfrage deines Google-Kontos. Im Ausführungsprotokoll erscheinen Anzahl Einträge, aktueller Monat und Top-Positionen (es wird nichts geschrieben).
 
 ### Schritt 2: Web-App bereitstellen
 1. Klicke oben rechts auf den blauen Button **Bereitstellen ➔ Neue Bereitstellung**.

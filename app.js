@@ -1,83 +1,212 @@
 /**
- * Kostentracker PWA - Client Logic
+ * Kostentracker PWA - Client Logic (v3.0)
+ *
+ * Neu in v3:
+ *  - Typ-Umschalter Familie / Persönlich (Spalte F im Sheet)
+ *  - Verlauf direkt aus dem Sheet inkl. Bearbeiten & Löschen
+ *  - Monatsübersicht mit Ausgleich Sascha/Sonja und persönlichen Kosten
+ *  - Positions-Vorschläge & Schnellwahl-Chips aus den echten Daten
+ *  - Vereinheitlichung der Positionsnamen, robuster Betragsparser
+ *  - Sicherheits-Token für alle Zugriffe, Doppelbuchungs-Schutz für die Offline-Warteschlange
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Elements
-  const btnSascha = document.getElementById('btn-sascha');
-  const btnSonja = document.getElementById('btn-sonja');
-  const expenseForm = document.getElementById('expense-form');
-  const amountInput = document.getElementById('amount-input');
-  const positionInput = document.getElementById('position-input');
-  const quickChips = document.querySelectorAll('.chip-btn');
-  const dateInput = document.getElementById('date-input');
-  const btnToday = document.getElementById('btn-today');
-  const btnYesterday = document.getElementById('btn-yesterday');
-  const toggleCommentBtn = document.getElementById('toggle-comment-btn');
-  const commentBox = document.getElementById('comment-box');
-  const commentInput = document.getElementById('comment-input');
-  const commentIcon = document.getElementById('comment-toggle-icon');
-  const submitBtn = document.getElementById('submit-btn');
-  const btnSpinner = document.getElementById('btn-spinner');
-  const btnLabel = document.getElementById('btn-label');
-  const toast = document.getElementById('toast');
-  const toastIcon = document.getElementById('toast-icon');
-  const toastText = document.getElementById('toast-text');
-  const offlineBanner = document.getElementById('offline-banner');
-  const offlineMessage = document.getElementById('offline-message');
-  const syncNowBtn = document.getElementById('sync-now-btn');
-  const statusDot = document.getElementById('status-dot');
-  const connectionText = document.getElementById('connection-text');
-  const recentList = document.getElementById('recent-list');
-  const recentCount = document.getElementById('recent-count');
+  const $ = (id) => document.getElementById(id);
 
-  // Settings Elements
-  const settingsDialog = document.getElementById('settings-dialog');
-  const openSettingsBtn = document.getElementById('open-settings-btn');
-  const closeSettingsBtn = document.getElementById('close-settings-btn');
-  const saveSettingsBtn = document.getElementById('save-settings-btn');
-  const testConnectionBtn = document.getElementById('test-connection-btn');
-  const cfgApiUrl = document.getElementById('cfg-api-url');
-  const cfgSecretToken = document.getElementById('cfg-secret-token');
-  const shareLinkBtn = document.getElementById('share-link-btn');
-  const pasteClipboardBtn = document.getElementById('paste-clipboard-btn');
-  const forceReloadBtn = document.getElementById('force-reload-btn');
+  // ---------- Elements ----------
+  const btnSascha = $('btn-sascha');
+  const btnSonja = $('btn-sonja');
+  const btnTypeFamily = $('btn-type-family');
+  const btnTypePersonal = $('btn-type-personal');
+  const typeHint = $('type-hint');
+  const expenseForm = $('expense-form');
+  const amountInput = $('amount-input');
+  const positionInput = $('position-input');
+  const chipsContainer = $('quick-chips');
+  const suggestionList = $('position-suggestions');
+  const dateInput = $('date-input');
+  const btnToday = $('btn-today');
+  const btnYesterday = $('btn-yesterday');
+  const toggleCommentBtn = $('toggle-comment-btn');
+  const commentBox = $('comment-box');
+  const commentInput = $('comment-input');
+  const commentIcon = $('comment-toggle-icon');
+  const submitBtn = $('submit-btn');
+  const btnSpinner = $('btn-spinner');
+  const btnLabel = $('btn-label');
+  const toast = $('toast');
+  const toastIcon = $('toast-icon');
+  const toastText = $('toast-text');
+  const offlineBanner = $('offline-banner');
+  const offlineMessage = $('offline-message');
+  const syncNowBtn = $('sync-now-btn');
+  const statusDot = $('status-dot');
+  const connectionText = $('connection-text');
 
-  // Auto-Setup via URL Parameters (e.g. ?api=https://script.google.com/...&token=...)
+  // History
+  const historyList = $('history-list');
+  const historyNote = $('history-note');
+  const historySearch = $('history-search');
+  const historyRefreshBtn = $('history-refresh-btn');
+  const filterTypeSeg = $('filter-type');
+  const filterPayerSeg = $('filter-payer');
+
+  // Summary
+  const monthLabel = $('month-label');
+  const monthPrev = $('month-prev');
+  const monthNext = $('month-next');
+  const summaryFamily = $('summary-family');
+  const summaryPersonal = $('summary-personal');
+  const summaryTrend = $('summary-trend');
+  const summaryNote = $('summary-note');
+  const trendPerson = $('trend-person');
+
+  // Edit dialog
+  const editDialog = $('edit-dialog');
+  const editAmount = $('edit-amount');
+  const editPosition = $('edit-position');
+  const editDate = $('edit-date');
+  const editPayer = $('edit-payer');
+  const editType = $('edit-type');
+  const editComment = $('edit-comment');
+  const editRowNote = $('edit-row-note');
+  const editSaveBtn = $('edit-save-btn');
+  const editDeleteBtn = $('edit-delete-btn');
+  const closeEditBtn = $('close-edit-btn');
+
+  // Settings
+  const settingsDialog = $('settings-dialog');
+  const openSettingsBtn = $('open-settings-btn');
+  const closeSettingsBtn = $('close-settings-btn');
+  const saveSettingsBtn = $('save-settings-btn');
+  const testConnectionBtn = $('test-connection-btn');
+  const cfgApiUrl = $('cfg-api-url');
+  const cfgSecretToken = $('cfg-secret-token');
+  const shareLinkBtn = $('share-link-btn');
+  const pasteClipboardBtn = $('paste-clipboard-btn');
+  const forceReloadBtn = $('force-reload-btn');
+
+  // ---------- Storage helpers ----------
+  const store = {
+    get(key, fallback = null) {
+      try {
+        const v = localStorage.getItem(key);
+        return v === null ? fallback : v;
+      } catch (e) { return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem(key, value); } catch (e) { /* ignore */ }
+    },
+    getJSON(key, fallback) {
+      try {
+        const v = localStorage.getItem(key);
+        return v ? JSON.parse(v) : fallback;
+      } catch (e) { return fallback; }
+    },
+    setJSON(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
+    }
+  };
+
+  // ---------- Auto-Setup via URL Parameters ----------
   try {
     const urlParams = new URLSearchParams(window.location.search);
     const apiParam = urlParams.get('api');
     const tokenParam = urlParams.get('token');
     if (apiParam) {
-      localStorage.setItem('kostentracker_api_url', apiParam.trim());
-      if (tokenParam !== null) {
-        localStorage.setItem('kostentracker_secret_token', tokenParam.trim());
-      }
+      store.set('kostentracker_api_url', apiParam.trim());
+      if (tokenParam !== null) store.set('kostentracker_secret_token', tokenParam.trim());
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   } catch (paramErr) {
     console.warn('URL params parsing failed:', paramErr);
   }
 
-  // State
-  let currentPayer = localStorage.getItem('kostentracker_payer') || 'Sascha';
-  let offlineQueue = JSON.parse(localStorage.getItem('kostentracker_queue') || '[]');
-  let recentEntries = JSON.parse(localStorage.getItem('kostentracker_recent') || '[]');
-  let isSyncing = false;
+  // ---------- Constants ----------
+  const TYPE_FAMILY = 'Familie';
+  const TYPE_PERSONAL = 'Persönlich';
+  const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
-  // Initialize Payer
-  function setPayer(payer) {
-    currentPayer = payer;
-    localStorage.setItem('kostentracker_payer', payer);
-    btnSascha.classList.toggle('active', payer === 'Sascha');
-    btnSonja.classList.toggle('active', payer === 'Sonja');
+  const DEFAULT_CHIPS = {
+    [TYPE_FAMILY]: ['Edeka', 'Rewe', 'Bäckerei', 'Edeka + Bäckerei', 'Kraus', 'Kleidung Kinder', 'Flaschenpost', 'Happycoffee', 'Baumarkt', 'Apotheke'],
+    [TYPE_PERSONAL]: ['Mittagessen', 'Kaffee', 'Tanken', 'Kleidung', 'Sport', 'Bücher', 'Geschenk', 'Parken', 'Friseur', 'Freizeit']
+  };
+
+  const CHIP_ICONS = [
+    [/edeka|rewe|aldi|lidl|supermarkt|einkauf|kaufland|netto/i, '🛒'],
+    [/bäcker|brot|kuchen/i, '🥐'],
+    [/flaschenpost|getränk/i, '🥤'],
+    [/kaffee|coffee|café|cafe/i, '☕'],
+    [/baumarkt|haushalt/i, '🔨'],
+    [/kleidung|schuh/i, '👕'],
+    [/apotheke|arzt/i, '💊'],
+    [/dm|rossmann|drogerie|windel|pampers/i, '🧴'],
+    [/tank|benzin|laden/i, '⛽'],
+    [/essen|restaurant|mittag|lieferando|mcdonald|pizza|vapiano/i, '🍽️'],
+    [/kiosk|zeitung/i, '📰'],
+    [/sport|fitness/i, '🏋️'],
+    [/buch|bücher/i, '📚'],
+    [/geschenk|geburtstag/i, '🎁'],
+    [/park/i, '🅿️'],
+    [/friseur|frisör/i, '💇'],
+    [/kirmes|freizeit|kino|zoo/i, '🎡'],
+    [/kraus|gemüse|obst|markt/i, '🥕'],
+    [/flug|reise|hotel|urlaub/i, '✈️'],
+    [/taxi|bahn|ticket/i, '🚕']
+  ];
+
+  // ---------- Positions-Vereinheitlichung (identisch zu Code.gs) ----------
+  const POSITION_ALIASES = {
+    'bäcker': 'Bäckerei', 'baecker': 'Bäckerei', 'bäckerei': 'Bäckerei', 'backerei': 'Bäckerei',
+    'edeka': 'Edeka', 'rewe': 'Rewe', 'aldi': 'Aldi', 'lidl': 'Lidl', 'dm': 'DM', 'dm kinder': 'DM Kinder',
+    'apotheke': 'Apotheke', 'kinderkleidung': 'Kleidung Kinder', 'kleidung kinder': 'Kleidung Kinder',
+    'mc donalds': "McDonald's", 'mcdonalds': "McDonald's", "mc donald's": "McDonald's", "mcdonald's": "McDonald's",
+    'frisör': 'Friseur', 'flaschenpost': 'Flaschenpost', 'happycoffee': 'Happycoffee', 'happy coffee': 'Happycoffee',
+    'baumarkt': 'Baumarkt', 'kiosk': 'Kiosk'
+  };
+
+  function normalizePosition(raw) {
+    const s = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim();
+    if (!s) return '';
+    return s.split(/\s*\+\s*|\s+und\s+/i)
+      .map(p => p.trim())
+      .filter(Boolean)
+      .map(p => POSITION_ALIASES[p.toLowerCase()] || (p.charAt(0).toUpperCase() + p.slice(1)))
+      .join(' + ');
   }
 
-  btnSascha.addEventListener('click', () => setPayer('Sascha'));
-  btnSonja.addEventListener('click', () => setPayer('Sonja'));
-  setPayer(currentPayer);
+  // Parse Amount: "14,99", "14.99", "1.234,56", "1,234.56"
+  function parseAmount(val) {
+    if (typeof val === 'number') return val;
+    if (val == null) return NaN;
+    let s = String(val).replace(/€/g, '').replace(/\s/g, '');
+    if (!s) return NaN;
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+    if (hasComma && hasDot) {
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else s = s.replace(/,/g, '');
+    } else if (hasComma) {
+      s = s.replace(',', '.');
+    } else if (hasDot && /^\d{1,3}(\.\d{3})+$/.test(s)) {
+      s = s.replace(/\./g, '');
+    }
+    if (!/^-?\d+(\.\d+)?$/.test(s)) return NaN;
+    return Math.round(parseFloat(s) * 100) / 100;
+  }
 
-  // Initialize Date (Default: Today in YYYY-MM-DD for HTML5 date input)
+  // ---------- Formatting ----------
+  const eurFmt = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+  const fmtEur = (n) => eurFmt.format(Number(n) || 0);
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
   function formatDateForInput(date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -85,75 +214,204 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${y}-${m}-${d}`;
   }
 
-  function setToday() {
-    dateInput.value = formatDateForInput(new Date());
+  function isoToGerman(iso) {
+    if (!iso) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}.${m}.${y}`;
   }
 
-  function setYesterday() {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    dateInput.value = formatDateForInput(yesterday);
+  function germanToIso(de) {
+    const m = String(de || '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : '';
   }
 
-  setToday();
-  btnToday.addEventListener('click', setToday);
-  btnYesterday.addEventListener('click', setYesterday);
+  function dayHeader(iso) {
+    if (!iso) return 'Ohne Datum';
+    const today = formatDateForInput(new Date());
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    if (iso === today) return 'Heute';
+    if (iso === formatDateForInput(y)) return 'Gestern';
+    const [yy, mm, dd] = iso.split('-').map(Number);
+    const d = new Date(yy, mm - 1, dd);
+    return `${WEEKDAYS[d.getDay()]}, ${dd}. ${MONTH_SHORT[mm - 1]} ${yy}`;
+  }
 
-  // Quick Chips
-  quickChips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      const pos = chip.dataset.pos;
-      positionInput.value = pos;
-      quickChips.forEach(c => c.classList.remove('selected'));
-      chip.classList.add('selected');
-      if (amountInput.value) {
-        submitBtn.focus();
-      } else {
-        amountInput.focus();
-      }
-    });
-  });
+  function newClientId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+  }
 
-  positionInput.addEventListener('input', () => {
-    quickChips.forEach(chip => {
-      chip.classList.toggle('selected', chip.dataset.pos.toLowerCase() === positionInput.value.trim().toLowerCase());
-    });
-  });
+  // ---------- State ----------
+  let currentPayer = store.get('kostentracker_payer', 'Sascha');
+  let currentType = store.get('kostentracker_type', TYPE_FAMILY) === TYPE_PERSONAL ? TYPE_PERSONAL : TYPE_FAMILY;
+  let offlineQueue = store.getJSON('kostentracker_queue', []);
+  let sheetData = store.getJSON('kostentracker_data', null);
+  let isSyncing = false;
+  let isLoadingData = false;
+  let lastDataLoad = 0;
+  let historyFilter = { type: 'all', payer: 'all', q: '' };
+  let summaryMonth = null; // 'YYYY-MM'
+  let editingEntry = null;
 
-  // Collapsible Comment
-  toggleCommentBtn.addEventListener('click', () => {
-    const isOpen = commentBox.classList.toggle('open');
-    commentIcon.textContent = isOpen ? '−' : '＋';
-    if (isOpen) {
-      commentInput.focus();
-    }
-  });
+  // Migration: alte Offline-Einträge ohne Typ/clientId ergänzen
+  offlineQueue = offlineQueue.map(item => ({
+    ...item,
+    type: item.type || TYPE_FAMILY,
+    clientId: item.clientId || newClientId()
+  }));
+  store.setJSON('kostentracker_queue', offlineQueue);
 
-  // Toast Notification
+  // ---------- Toast ----------
   let toastTimer = null;
   function showToast(text, icon = '✅', type = 'success', duration = 3000) {
     clearTimeout(toastTimer);
     toastText.textContent = text;
     toastIcon.textContent = icon;
     toast.className = `toast show ${type}`;
-    toastTimer = setTimeout(() => {
-      toast.classList.remove('show');
-    }, duration);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
   }
 
-  // API Config Helper
+  // ---------- API ----------
   function getApiConfig() {
-    const storedUrl = localStorage.getItem('kostentracker_api_url');
-    const storedToken = localStorage.getItem('kostentracker_secret_token');
+    const storedUrl = store.get('kostentracker_api_url');
+    const storedToken = store.get('kostentracker_secret_token');
     const windowConfig = window.APP_CONFIG || {};
-
     return {
       apiUrl: storedUrl || windowConfig.API_URL || '',
       secretToken: storedToken !== null ? storedToken : (windowConfig.SECRET_TOKEN || '')
     };
   }
 
-  // Connectivity & Status
+  async function apiGet(action, extra = {}) {
+    const config = getApiConfig();
+    if (!config.apiUrl) throw new Error('Keine Web-App-URL hinterlegt.');
+    const params = new URLSearchParams({ action, token: config.secretToken || '', ...extra, _: Date.now() });
+    const sep = config.apiUrl.includes('?') ? '&' : '?';
+    const resp = await fetch(config.apiUrl + sep + params.toString());
+    return resp.json();
+  }
+
+  async function apiPost(body) {
+    const config = getApiConfig();
+    if (!config.apiUrl) throw new Error('Keine Web-App-URL hinterlegt.');
+    // text/plain vermeidet den CORS-Preflight bei Google Apps Script
+    const resp = await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ ...body, token: config.secretToken || '' })
+    });
+    return resp.json();
+  }
+
+  function handleAuthError(result) {
+    if (result && result.code === 'AUTH') {
+      showToast('Sicherheits-Token fehlt oder ist falsch – bitte unter ⚙️ eintragen.', '🔒', 'error', 5000);
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- Payer & Type ----------
+  function setPayer(payer) {
+    currentPayer = payer;
+    store.set('kostentracker_payer', payer);
+    btnSascha.classList.toggle('active', payer === 'Sascha');
+    btnSonja.classList.toggle('active', payer === 'Sonja');
+    if (document.querySelector('#view-summary.active')) renderSummary();
+  }
+
+  function setType(type) {
+    currentType = type === TYPE_PERSONAL ? TYPE_PERSONAL : TYPE_FAMILY;
+    store.set('kostentracker_type', currentType);
+    const personal = currentType === TYPE_PERSONAL;
+    document.body.classList.toggle('mode-personal', personal);
+    btnTypeFamily.classList.toggle('active', !personal);
+    btnTypePersonal.classList.toggle('active', personal);
+    typeHint.textContent = personal
+      ? 'Nur für dich – zählt NICHT für den Familien-Ausgleich'
+      : 'Geteilte Familienkosten – zählt für den Ausgleich';
+    btnLabel.textContent = personal ? 'Persönlich speichern' : 'Familienkosten speichern';
+    renderChips();
+    renderSuggestions();
+  }
+
+  btnSascha.addEventListener('click', () => setPayer('Sascha'));
+  btnSonja.addEventListener('click', () => setPayer('Sonja'));
+  btnTypeFamily.addEventListener('click', () => setType(TYPE_FAMILY));
+  btnTypePersonal.addEventListener('click', () => setType(TYPE_PERSONAL));
+
+  // ---------- Date ----------
+  function setToday() { dateInput.value = formatDateForInput(new Date()); }
+  function setYesterday() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    dateInput.value = formatDateForInput(d);
+  }
+  btnToday.addEventListener('click', setToday);
+  btnYesterday.addEventListener('click', setYesterday);
+
+  // ---------- Chips & Suggestions ----------
+  function chipIcon(pos) {
+    for (const [re, icon] of CHIP_ICONS) if (re.test(pos)) return icon;
+    return '•';
+  }
+
+  function topPositions(type, n) {
+    const list = (sheetData && sheetData.suggestions && sheetData.suggestions[type]) || [];
+    return list.slice(0, n).map(s => s.position);
+  }
+
+  function renderChips() {
+    let chips = topPositions(currentType, 10);
+    if (chips.length < 6) {
+      const extra = DEFAULT_CHIPS[currentType].filter(c => !chips.includes(c));
+      chips = chips.concat(extra).slice(0, 10);
+    }
+    chipsContainer.innerHTML = chips.map(pos =>
+      `<button type="button" class="chip-btn" data-pos="${escapeHtml(pos)}">${chipIcon(pos)} ${escapeHtml(pos)}</button>`
+    ).join('');
+    syncChipSelection();
+  }
+
+  function syncChipSelection() {
+    const val = positionInput.value.trim().toLowerCase();
+    chipsContainer.querySelectorAll('.chip-btn').forEach(chip => {
+      chip.classList.toggle('selected', chip.dataset.pos.toLowerCase() === val);
+    });
+  }
+
+  chipsContainer.addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip-btn');
+    if (!chip) return;
+    positionInput.value = chip.dataset.pos;
+    syncChipSelection();
+    if (amountInput.value) submitBtn.focus();
+    else amountInput.focus();
+  });
+
+  positionInput.addEventListener('input', syncChipSelection);
+  positionInput.addEventListener('blur', () => {
+    const norm = normalizePosition(positionInput.value);
+    if (norm && norm !== positionInput.value) positionInput.value = norm;
+    syncChipSelection();
+  });
+
+  function renderSuggestions() {
+    const s = (sheetData && sheetData.suggestions) || {};
+    const primary = (s[currentType] || []).map(x => x.position);
+    const other = (s[currentType === TYPE_FAMILY ? TYPE_PERSONAL : TYPE_FAMILY] || []).map(x => x.position);
+    const all = [...new Set([...primary, ...other])];
+    suggestionList.innerHTML = all.map(p => `<option value="${escapeHtml(p)}"></option>`).join('');
+  }
+
+  // ---------- Comment ----------
+  toggleCommentBtn.addEventListener('click', () => {
+    const isOpen = commentBox.classList.toggle('open');
+    commentIcon.textContent = isOpen ? '−' : '＋';
+    if (isOpen) commentInput.focus();
+  });
+
+  // ---------- Connectivity ----------
   function updateConnectionStatus() {
     const isOnline = navigator.onLine;
     statusDot.classList.toggle('offline', !isOnline);
@@ -185,99 +443,99 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   syncNowBtn.addEventListener('click', syncOfflineQueue);
-  updateConnectionStatus();
 
-  // Recent Entries Rendering
-  function renderRecentEntries() {
-    if (!recentEntries || recentEntries.length === 0) {
-      recentList.innerHTML = '<div style="color: var(--text-subtle); font-size: 0.82rem; text-align: center; padding: 10px;">Noch keine Einträge in dieser Sitzung.</div>';
-      recentCount.textContent = '0 Einträge';
-      return;
+  // ---------- Daten aus dem Sheet laden ----------
+  async function loadData(force = false) {
+    if (isLoadingData) return;
+    if (!force && Date.now() - lastDataLoad < 60000) return;
+    if (!navigator.onLine || !getApiConfig().apiUrl) return;
+    isLoadingData = true;
+    historyRefreshBtn.disabled = true;
+    historyRefreshBtn.textContent = '↻ Lädt...';
+    try {
+      const result = await apiGet('data');
+      if (result && result.success) {
+        sheetData = result;
+        lastDataLoad = Date.now();
+        store.setJSON('kostentracker_data', sheetData);
+        renderAll();
+      } else if (!handleAuthError(result)) {
+        const msg = result && result.error ? result.error : 'Unbekannte Antwort';
+        // Ältere Code.gs-Version kennt "data" noch nicht
+        historyNote.textContent = 'Daten konnten nicht geladen werden: ' + msg;
+      }
+    } catch (err) {
+      console.warn('Daten laden fehlgeschlagen:', err);
+      historyNote.textContent = 'Daten konnten nicht geladen werden (offline?). Zeige zuletzt gespeicherten Stand.';
+    } finally {
+      isLoadingData = false;
+      historyRefreshBtn.disabled = false;
+      historyRefreshBtn.textContent = '↻ Aktualisieren';
     }
-
-    recentCount.textContent = `${recentEntries.length} ${recentEntries.length === 1 ? 'Eintrag' : 'Einträge'}`;
-    recentList.innerHTML = recentEntries.map(entry => `
-      <div class="recent-item">
-        <div class="recent-item-info">
-          <span class="recent-item-pos">${escapeHtml(entry.position)}</span>
-          <span class="recent-item-meta">${entry.date} · ${entry.paidBy}${entry.comment ? ' · ' + escapeHtml(entry.comment) : ''}</span>
-        </div>
-        <span class="recent-item-amount">${entry.amount.toFixed(2).replace('.', ',')} €</span>
-      </div>
-    `).join('');
   }
 
-  function addRecentEntry(entry) {
-    recentEntries.unshift(entry);
-    if (recentEntries.length > 10) recentEntries.pop();
-    localStorage.setItem('kostentracker_recent', JSON.stringify(recentEntries));
-    renderRecentEntries();
+  historyRefreshBtn.addEventListener('click', () => loadData(true));
+
+  // Lokale Daten nach Änderungen sofort anpassen (bis zum nächsten Laden)
+  function applyLocalAdd(entry) {
+    if (!sheetData) return;
+    sheetData.entries = [entry, ...(sheetData.entries || [])];
+    adjustMonth(entry, +1);
   }
 
-  renderRecentEntries();
-
-  // Helper: Format Date from YYYY-MM-DD to DD.MM.YYYY
-  function formatGermanDate(isoDateStr) {
-    if (!isoDateStr) return '';
-    const parts = isoDateStr.split('-');
-    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+  function adjustMonth(entry, sign) {
+    if (!sheetData || !entry.iso) return;
+    const key = entry.iso.slice(0, 7);
+    let m = (sheetData.months || []).find(x => x.month === key);
+    if (!m) {
+      m = { month: key, family: {}, personal: {}, count: 0 };
+      sheetData.months = [...(sheetData.months || []), m].sort((a, b) => (a.month < b.month ? 1 : -1));
+    }
+    const bucket = entry.type === TYPE_PERSONAL ? m.personal : m.family;
+    bucket[entry.paidBy] = Math.round(((bucket[entry.paidBy] || 0) + sign * entry.amount) * 100) / 100;
+    m.count += sign;
   }
 
-  // Parse Amount (e.g. "14,99" or "14.99")
-  function parseAmount(val) {
-    if (!val) return NaN;
-    const clean = val.replace('€', '').replace(/\s/g, '').replace(',', '.');
-    return parseFloat(clean);
+  function persistData() {
+    store.setJSON('kostentracker_data', sheetData);
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str || '';
-    return div.innerHTML;
-  }
-
-  // Form Submit Handler
+  // ---------- Erfassen ----------
   expenseForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const rawAmount = amountInput.value.trim();
-    const numericAmount = parseAmount(rawAmount);
-
+    const numericAmount = parseAmount(amountInput.value.trim());
     if (isNaN(numericAmount) || numericAmount <= 0) {
       showToast('Bitte einen gültigen Betrag eingeben.', '⚠️', 'error');
       amountInput.focus();
       return;
     }
 
-    const position = positionInput.value.trim();
+    const position = normalizePosition(positionInput.value);
     if (!position) {
       showToast('Bitte Wo/Wofür angeben.', '⚠️', 'error');
       positionInput.focus();
       return;
     }
 
-    const rawDate = dateInput.value;
-    const formattedDate = formatGermanDate(rawDate);
-    const comment = commentInput.value.trim();
     const config = getApiConfig();
-
-    const payload = {
-      position: position,
-      amount: numericAmount,
-      date: formattedDate,
-      paidBy: currentPayer,
-      comment: comment,
-      token: config.secretToken
-    };
-
-    // Check if API URL is configured
     if (!config.apiUrl) {
-      settingsDialog.showModal();
+      openSettings();
       showToast('Bitte zuerst Google Web-App URL hinterlegen.', '⚙️', 'warning', 4000);
       return;
     }
 
-    // If Offline: Queue it
+    const payload = {
+      action: 'add',
+      clientId: newClientId(),
+      position,
+      amount: numericAmount,
+      date: isoToGerman(dateInput.value),
+      paidBy: currentPayer,
+      type: currentType,
+      comment: commentInput.value.trim()
+    };
+
     if (!navigator.onLine) {
       queueEntry(payload);
       resetFormAfterSubmit();
@@ -285,31 +543,24 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Online: Submit to Google Apps Script Web App
     setLoadingState(true);
-
     try {
-      // Use text/plain with POST to avoid CORS preflight options check in Google Apps Script
-      const response = await fetch(config.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const result = await response.json();
-
+      const result = await apiPost(payload);
       if (result && result.success) {
-        if (navigator.vibrate) {
-          navigator.vibrate([40, 50, 40]);
+        if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
+        const label = currentType === TYPE_PERSONAL ? 'Persönlich gespeichert' : 'Im Sheet gespeichert';
+        showToast(`${label}: ${position} ${fmtEur(numericAmount)}`, '✅', 'success');
+        if (result.data && !result.duplicate) {
+          applyLocalAdd(result.data);
+          persistData();
+          renderAll();
         }
-        showToast('Erfolgreich im Sheet gespeichert!', '✅', 'success');
-        addRecentEntry(payload);
         resetFormAfterSubmit();
-      } else {
-        const errMsg = result && result.error ? result.error : 'Fehler beim Speichern';
-        showToast(errMsg, '❌', 'error', 4500);
+        // Im Hintergrund frische Daten holen (Zeilennummern, Summen)
+        lastDataLoad = 0;
+        setTimeout(() => loadData(true), 400);
+      } else if (!handleAuthError(result)) {
+        showToast(result && result.error ? result.error : 'Fehler beim Speichern', '❌', 'error', 4500);
       }
     } catch (err) {
       console.warn('Network error, saving to offline queue:', err);
@@ -322,42 +573,33 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function queueEntry(payload) {
-    offlineQueue.push({
-      ...payload,
-      queuedAt: new Date().toISOString()
-    });
-    localStorage.setItem('kostentracker_queue', JSON.stringify(offlineQueue));
-    addRecentEntry({ ...payload, isOffline: true });
+    offlineQueue.push({ ...payload, queuedAt: new Date().toISOString() });
+    store.setJSON('kostentracker_queue', offlineQueue);
     updateQueueBanner();
+    renderHistory();
   }
 
   async function syncOfflineQueue() {
     if (isSyncing || offlineQueue.length === 0 || !navigator.onLine) return;
-
-    const config = getApiConfig();
-    if (!config.apiUrl) return;
+    if (!getApiConfig().apiUrl) return;
 
     isSyncing = true;
     syncNowBtn.disabled = true;
     syncNowBtn.textContent = 'Synchronisiere...';
 
-    const itemsToSync = [...offlineQueue];
     let syncedCount = 0;
+    let authFailed = false;
     const remainingQueue = [];
 
-    for (const item of itemsToSync) {
+    for (const item of [...offlineQueue]) {
       try {
-        const response = await fetch(config.apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
-          },
-          body: JSON.stringify(item)
-        });
-        const result = await response.json();
+        // Immer das aktuelle Token verwenden (nicht das beim Puffern gespeicherte)
+        const { token, queuedAt, ...body } = item;
+        const result = await apiPost({ action: 'add', ...body });
         if (result && result.success) {
           syncedCount++;
         } else {
+          if (result && result.code === 'AUTH') authFailed = true;
           remainingQueue.push(item);
         }
       } catch (err) {
@@ -366,76 +608,428 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     offlineQueue = remainingQueue;
-    localStorage.setItem('kostentracker_queue', JSON.stringify(offlineQueue));
+    store.setJSON('kostentracker_queue', offlineQueue);
     updateQueueBanner();
     syncNowBtn.disabled = false;
     syncNowBtn.textContent = 'Jetzt synchronisieren';
     isSyncing = false;
 
+    if (authFailed) handleAuthError({ code: 'AUTH' });
     if (syncedCount > 0) {
       showToast(`${syncedCount} ${syncedCount === 1 ? 'Eintrag' : 'Einträge'} synchronisiert!`, '✅');
+      loadData(true);
     }
+    renderHistory();
   }
 
   function setLoadingState(loading) {
     submitBtn.disabled = loading;
     btnSpinner.style.display = loading ? 'inline-block' : 'none';
-    btnLabel.textContent = loading ? 'Wird gespeichert...' : 'Eintrag speichern';
+    btnLabel.textContent = loading
+      ? 'Wird gespeichert...'
+      : (currentType === TYPE_PERSONAL ? 'Persönlich speichern' : 'Familienkosten speichern');
   }
 
   function resetFormAfterSubmit() {
     amountInput.value = '';
     positionInput.value = '';
-    quickChips.forEach(chip => chip.classList.remove('selected'));
     commentInput.value = '';
     commentBox.classList.remove('open');
     commentIcon.textContent = '＋';
+    syncChipSelection();
     setToday();
     amountInput.focus();
   }
 
-  // Settings Dialog Logic
-  function updateShareButton() {
-    const config = getApiConfig();
-    if (shareLinkBtn) {
-      shareLinkBtn.style.display = (config.apiUrl && config.apiUrl.startsWith('http')) ? 'block' : 'none';
+  // ---------- Views / Navigation ----------
+  const navButtons = document.querySelectorAll('.nav-btn');
+  function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === viewId));
+    navButtons.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
+    store.set('kostentracker_view', viewId);
+    if (viewId === 'view-history') renderHistory();
+    if (viewId === 'view-summary') renderSummary();
+    if (viewId !== 'view-add') loadData(false);
+    window.scrollTo(0, 0);
+  }
+  navButtons.forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+
+  // ---------- Verlauf ----------
+  function bindSeg(seg, key) {
+    seg.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+      historyFilter[key] = btn.dataset.val;
+      renderHistory();
+    });
+  }
+  bindSeg(filterTypeSeg, 'type');
+  bindSeg(filterPayerSeg, 'payer');
+  historySearch.addEventListener('input', () => {
+    historyFilter.q = historySearch.value.trim().toLowerCase();
+    renderHistory();
+  });
+
+  function matchesFilter(entry) {
+    if (historyFilter.type !== 'all' && entry.type !== historyFilter.type) return false;
+    if (historyFilter.payer !== 'all' && entry.paidBy !== historyFilter.payer) return false;
+    if (historyFilter.q) {
+      const hay = `${entry.position} ${entry.comment || ''}`.toLowerCase();
+      if (!hay.includes(historyFilter.q)) return false;
     }
+    return true;
   }
 
-  openSettingsBtn.addEventListener('click', () => {
+  function entryHtml(entry, pending) {
+    const personal = entry.type === TYPE_PERSONAL;
+    const meta = [entry.paidBy];
+    if (personal) meta.push('Persönlich');
+    if (entry.comment) meta.push(entry.comment);
+    if (pending) meta.push('⏳ wartet auf Sync');
+    return `
+      <button type="button" class="entry-item ${personal ? 'personal' : 'family'} ${pending ? 'pending' : ''}" ${pending ? 'disabled' : `data-row="${entry.row}"`}>
+        <span class="entry-info">
+          <span class="entry-pos">${escapeHtml(entry.position)}</span>
+          <span class="entry-meta">${escapeHtml(meta.join(' · '))}</span>
+        </span>
+        <span class="entry-amount">${fmtEur(entry.amount)}</span>
+      </button>`;
+  }
+
+  function renderHistory() {
+    const pending = offlineQueue.map(q => ({
+      position: q.position, amount: q.amount, paidBy: q.paidBy, type: q.type || TYPE_FAMILY,
+      comment: q.comment, iso: germanToIso(q.date), pending: true
+    })).filter(matchesFilter);
+
+    if (!sheetData) {
+      historyList.innerHTML = pending.map(p => entryHtml(p, true)).join('') +
+        `<div class="empty-state">${getApiConfig().apiUrl ? 'Noch keine Daten geladen. Tippe auf „Aktualisieren“.' : 'Bitte zuerst unter ⚙️ die Web-App-URL und das Token hinterlegen.'}</div>`;
+      historyNote.textContent = '';
+      return;
+    }
+
+    const entries = (sheetData.entries || []).filter(matchesFilter);
+    const all = [...pending, ...entries].sort((a, b) => (a.iso === b.iso ? 0 : (a.iso < b.iso ? 1 : -1)));
+    if (all.length === 0) {
+      historyList.innerHTML = '<div class="empty-state">Keine Einträge für diesen Filter.</div>';
+    } else {
+      // Nach Tag gruppieren
+      const groups = [];
+      let cur = null;
+      all.slice(0, 120).forEach(e => {
+        if (!cur || cur.iso !== e.iso) {
+          cur = { iso: e.iso, items: [], sum: 0 };
+          groups.push(cur);
+        }
+        cur.items.push(e);
+        cur.sum += Number(e.amount) || 0;
+      });
+      historyList.innerHTML = groups.map(g => `
+        <div class="day-group">
+          <div class="day-header"><span>${escapeHtml(dayHeader(g.iso))}</span><span>${fmtEur(g.sum)}</span></div>
+          ${g.items.map(e => entryHtml(e, !!e.pending)).join('')}
+        </div>`).join('');
+    }
+    const when = sheetData.generatedAt ? new Date(sheetData.generatedAt) : null;
+    historyNote.textContent = `Letzte ${(sheetData.entries || []).length} Einträge aus dem Sheet` +
+      (when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '') +
+      ' · Tippen zum Bearbeiten';
+  }
+
+  historyList.addEventListener('click', (e) => {
+    const item = e.target.closest('.entry-item[data-row]');
+    if (!item || !sheetData) return;
+    const row = Number(item.dataset.row);
+    const entry = (sheetData.entries || []).find(x => x.row === row);
+    if (entry) openEdit(entry);
+  });
+
+  // ---------- Bearbeiten / Löschen ----------
+  let deleteArmed = false;
+  function resetDeleteBtn() {
+    deleteArmed = false;
+    editDeleteBtn.classList.remove('confirm');
+    editDeleteBtn.textContent = 'Löschen';
+  }
+
+  function openEdit(entry) {
+    editingEntry = entry;
+    editAmount.value = String(entry.amount.toFixed(2)).replace('.', ',');
+    editPosition.value = entry.position;
+    editDate.value = entry.iso || '';
+    editPayer.value = entry.paidBy === 'Sonja' ? 'Sonja' : 'Sascha';
+    editType.value = entry.type === TYPE_PERSONAL ? TYPE_PERSONAL : TYPE_FAMILY;
+    editComment.value = entry.comment || '';
+    editRowNote.textContent = `Zeile ${entry.row} im Sheet`;
+    resetDeleteBtn();
+    editDialog.showModal();
+  }
+
+  closeEditBtn.addEventListener('click', () => editDialog.close());
+
+  function setEditBusy(busy) {
+    editSaveBtn.disabled = busy;
+    editDeleteBtn.disabled = busy;
+  }
+
+  editSaveBtn.addEventListener('click', async () => {
+    if (!editingEntry) return;
+    const amount = parseAmount(editAmount.value);
+    if (isNaN(amount) || amount <= 0) {
+      showToast('Bitte einen gültigen Betrag eingeben.', '⚠️', 'error');
+      return;
+    }
+    const position = normalizePosition(editPosition.value);
+    if (!position) {
+      showToast('Bitte Wo/Wofür angeben.', '⚠️', 'error');
+      return;
+    }
+    if (!navigator.onLine) {
+      showToast('Bearbeiten geht nur online.', '📡', 'warning');
+      return;
+    }
+    setEditBusy(true);
+    try {
+      const result = await apiPost({
+        action: 'update',
+        row: editingEntry.row,
+        expected: { position: editingEntry.position, amount: editingEntry.amount },
+        entry: {
+          position, amount,
+          date: isoToGerman(editDate.value) || editingEntry.date,
+          paidBy: editPayer.value,
+          type: editType.value,
+          comment: editComment.value.trim()
+        }
+      });
+      if (result && result.success) {
+        adjustMonth(editingEntry, -1);
+        const updated = result.data;
+        sheetData.entries = sheetData.entries.map(x => (x.row === editingEntry.row ? updated : x));
+        adjustMonth(updated, +1);
+        persistData();
+        editDialog.close();
+        renderAll();
+        showToast('Eintrag aktualisiert.', '✏️');
+        loadData(true);
+      } else if (!handleAuthError(result)) {
+        showToast(result && result.error ? result.error : 'Fehler beim Speichern', '❌', 'error', 5000);
+        if (result && result.code === 'CONFLICT') { editDialog.close(); loadData(true); }
+      }
+    } catch (err) {
+      showToast('Verbindung fehlgeschlagen: ' + err.message, '❌', 'error', 4500);
+    } finally {
+      setEditBusy(false);
+    }
+  });
+
+  editDeleteBtn.addEventListener('click', async () => {
+    if (!editingEntry) return;
+    if (!deleteArmed) {
+      deleteArmed = true;
+      editDeleteBtn.classList.add('confirm');
+      editDeleteBtn.textContent = 'Wirklich löschen?';
+      setTimeout(() => { if (deleteArmed) resetDeleteBtn(); }, 4000);
+      return;
+    }
+    if (!navigator.onLine) {
+      showToast('Löschen geht nur online.', '📡', 'warning');
+      return;
+    }
+    setEditBusy(true);
+    try {
+      const result = await apiPost({
+        action: 'delete',
+        row: editingEntry.row,
+        expected: { position: editingEntry.position, amount: editingEntry.amount }
+      });
+      if (result && result.success) {
+        adjustMonth(editingEntry, -1);
+        const removedRow = editingEntry.row;
+        // Nachfolgende Zeilen rutschen im Sheet eine Zeile nach oben
+        sheetData.entries = sheetData.entries
+          .filter(x => x.row !== removedRow)
+          .map(x => (x.row > removedRow ? { ...x, row: x.row - 1 } : x));
+        persistData();
+        editDialog.close();
+        renderAll();
+        showToast('Eintrag gelöscht.', '🗑️');
+        loadData(true);
+      } else if (!handleAuthError(result)) {
+        showToast(result && result.error ? result.error : 'Fehler beim Löschen', '❌', 'error', 5000);
+        if (result && result.code === 'CONFLICT') { editDialog.close(); loadData(true); }
+      }
+    } catch (err) {
+      showToast('Verbindung fehlgeschlagen: ' + err.message, '❌', 'error', 4500);
+    } finally {
+      setEditBusy(false);
+      resetDeleteBtn();
+    }
+  });
+
+  // ---------- Übersicht ----------
+  function currentMonthKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function shiftMonth(key, delta) {
+    const [y, m] = key.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function monthName(key, short = false) {
+    const [y, m] = key.split('-').map(Number);
+    return short ? `${MONTH_SHORT[m - 1]} ${String(y).slice(2)}` : `${MONTH_NAMES[m - 1]} ${y}`;
+  }
+
+  function getMonth(key) {
+    const m = sheetData && (sheetData.months || []).find(x => x.month === key);
+    return m || { month: key, family: {}, personal: {}, count: 0 };
+  }
+
+  monthPrev.addEventListener('click', () => { summaryMonth = shiftMonth(summaryMonth || currentMonthKey(), -1); renderSummary(); });
+  monthNext.addEventListener('click', () => {
+    const next = shiftMonth(summaryMonth || currentMonthKey(), 1);
+    if (next <= currentMonthKey()) { summaryMonth = next; renderSummary(); }
+  });
+
+  function renderSummary() {
+    if (!summaryMonth) summaryMonth = currentMonthKey();
+    monthLabel.textContent = monthName(summaryMonth);
+    monthNext.disabled = summaryMonth >= currentMonthKey();
+
+    if (!sheetData) {
+      summaryFamily.innerHTML = '<div class="empty-state">Noch keine Daten geladen.</div>';
+      summaryPersonal.innerHTML = '';
+      summaryTrend.innerHTML = '';
+      summaryNote.textContent = '';
+      return;
+    }
+
+    const m = getMonth(summaryMonth);
+    const fSascha = m.family.Sascha || 0;
+    const fSonja = m.family.Sonja || 0;
+    const fTotal = fSascha + fSonja;
+    const maxF = Math.max(fSascha, fSonja, 1);
+
+    let settleHtml;
+    const diff = fSascha - fSonja;
+    if (fTotal === 0) {
+      settleHtml = '<div class="empty-state">Keine Familienkosten in diesem Monat.</div>';
+    } else if (Math.abs(diff) < 0.01) {
+      settleHtml = '<div class="settle">⚖️ <strong>Ausgeglichen</strong> – beide haben gleich viel bezahlt.</div>';
+    } else {
+      const payerLess = diff > 0 ? 'Sonja' : 'Sascha';
+      const payerMore = diff > 0 ? 'Sascha' : 'Sonja';
+      settleHtml = `<div class="settle">⚖️ Ausgleich bei 50/50: <strong>${payerLess} → ${payerMore}: ${fmtEur(Math.abs(diff) / 2)}</strong><br>
+        <span style="font-size:0.8rem; opacity:0.85;">${payerMore} hat ${fmtEur(Math.abs(diff))} mehr bezahlt.</span></div>`;
+    }
+
+    summaryFamily.innerHTML = `
+      <div>
+        <div class="sum-row"><span>Sascha</span><span class="val">${fmtEur(fSascha)}</span></div>
+        <div class="bar fam"><span style="width:${(fSascha / maxF) * 100}%"></span></div>
+      </div>
+      <div>
+        <div class="sum-row"><span>Sonja</span><span class="val">${fmtEur(fSonja)}</span></div>
+        <div class="bar fam"><span style="width:${(fSonja / maxF) * 100}%"></span></div>
+      </div>
+      <div class="sum-row total"><span>Gesamt</span><span class="val">${fmtEur(fTotal)}</span></div>
+      ${settleHtml}`;
+
+    const pSascha = m.personal.Sascha || 0;
+    const pSonja = m.personal.Sonja || 0;
+    const personRows = [['Sascha', pSascha], ['Sonja', pSonja]]
+      .filter(([name, val]) => val > 0 || name === currentPayer)
+      .map(([name, val]) => `<div class="sum-row"><span>${name}${name === currentPayer ? ' <span class="type-badge">du</span>' : ''}</span><span class="val">${fmtEur(val)}</span></div>`)
+      .join('');
+
+    // Ø der letzten 12 abgeschlossenen Monate
+    let avgF = 0, avgP = 0;
+    for (let i = 1; i <= 12; i++) {
+      const mm = getMonth(shiftMonth(currentMonthKey(), -i));
+      avgF += (mm.family.Sascha || 0) + (mm.family.Sonja || 0);
+      avgP += mm.personal[currentPayer] || 0;
+    }
+    avgF /= 12; avgP /= 12;
+
+    summaryPersonal.innerHTML = personRows +
+      (pSascha + pSonja === 0 ? '<div class="muted-note" style="text-align:left;">Noch keine persönlichen Kosten in diesem Monat. Zum Erfassen oben „Persönlich“ wählen.</div>' : '') +
+      `<div class="muted-note" style="text-align:left;">Ø pro Monat (12 Monate): Familie ${fmtEur(avgF)} · Persönlich ${currentPayer} ${fmtEur(avgP)}</div>`;
+
+    // Trend: letzte 6 Monate bis zum gewählten Monat
+    trendPerson.textContent = currentPayer;
+    const keys = [];
+    for (let i = 5; i >= 0; i--) keys.push(shiftMonth(summaryMonth, -i));
+    const rows = keys.map(k => {
+      const mm = getMonth(k);
+      return { k, fam: (mm.family.Sascha || 0) + (mm.family.Sonja || 0), per: mm.personal[currentPayer] || 0 };
+    });
+    const maxT = Math.max(1, ...rows.map(r => Math.max(r.fam, r.per)));
+    summaryTrend.innerHTML = rows.map(r => `
+      <div>
+        <div class="trend-row"><span class="lbl">${monthName(r.k, true)}</span>
+          <div class="bar fam"><span style="width:${(r.fam / maxT) * 100}%"></span></div>
+          <span class="num">${fmtEur(r.fam)}</span></div>
+        <div class="trend-row"><span></span>
+          <div class="bar per"><span style="width:${(r.per / maxT) * 100}%"></span></div>
+          <span class="num" style="color:#c4b5fd;">${fmtEur(r.per)}</span></div>
+      </div>`).join('');
+
+    const when = sheetData.generatedAt ? new Date(sheetData.generatedAt) : null;
+    summaryNote.textContent = 'Nur variable Kosten aus „Familie Variable Kosten“' +
+      (when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '');
+  }
+
+  function renderAll() {
+    renderChips();
+    renderSuggestions();
+    renderHistory();
+    renderSummary();
+  }
+
+  // ---------- Settings ----------
+  function updateShareButton() {
+    const config = getApiConfig();
+    if (shareLinkBtn) shareLinkBtn.style.display = (config.apiUrl && config.apiUrl.startsWith('http')) ? 'block' : 'none';
+  }
+
+  function openSettings() {
     const config = getApiConfig();
     cfgApiUrl.value = config.apiUrl;
     cfgSecretToken.value = config.secretToken;
     updateShareButton();
     settingsDialog.showModal();
-  });
+  }
 
-  closeSettingsBtn.addEventListener('click', () => {
-    settingsDialog.close();
-  });
+  openSettingsBtn.addEventListener('click', openSettings);
+  closeSettingsBtn.addEventListener('click', () => settingsDialog.close());
 
   saveSettingsBtn.addEventListener('click', () => {
     const url = cfgApiUrl.value.trim();
     const token = cfgSecretToken.value.trim();
-
     if (!url) {
       showToast('Bitte die Web-App-URL einfügen!', '⚠️', 'error', 4000);
       cfgApiUrl.focus();
       return;
     }
-
     if (!url.startsWith('https://script.google.com/')) {
       showToast('URL muss mit https://script.google.com/ beginnen.', '⚠️', 'error', 4500);
       cfgApiUrl.focus();
       return;
     }
-
-    localStorage.setItem('kostentracker_api_url', url);
-    localStorage.setItem('kostentracker_secret_token', token);
+    store.set('kostentracker_api_url', url);
+    store.set('kostentracker_secret_token', token);
     settingsDialog.close();
     showToast('Einstellungen gespeichert!', '⚙️');
     updateConnectionStatus();
     updateShareButton();
+    loadData(true);
+    syncOfflineQueue();
   });
 
   if (shareLinkBtn) {
@@ -446,9 +1040,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(shareUrl).then(() => {
           showToast('Link kopiert! Per WhatsApp an Sonja senden.', '📋', 'success', 4500);
-        }).catch(() => {
-          prompt('Persönlicher Einrichtungs-Link für Sonja:', shareUrl);
-        });
+        }).catch(() => prompt('Persönlicher Einrichtungs-Link für Sonja:', shareUrl));
       } else {
         prompt('Persönlicher Einrichtungs-Link für Sonja:', shareUrl);
       }
@@ -462,15 +1054,20 @@ document.addEventListener('DOMContentLoaded', () => {
       cfgApiUrl.focus();
       return;
     }
-
     testConnectionBtn.disabled = true;
     testConnectionBtn.textContent = 'Prüfe...';
-
     try {
-      const resp = await fetch(url);
+      const sep = url.includes('?') ? '&' : '?';
+      const resp = await fetch(`${url}${sep}action=ping&token=${encodeURIComponent(cfgSecretToken.value.trim())}&_=${Date.now()}`);
       const data = await resp.json();
       if (data && data.status === 'ok') {
-        showToast('Verbindung erfolgreich! Sheet: ' + data.sheet, '✅', 'success', 4000);
+        if (data.authOk === false) {
+          showToast('Verbindung ok, aber Token falsch oder fehlt.', '🔒', 'warning', 5000);
+        } else if (!data.version) {
+          showToast('Verbindung ok – aber alte Code.gs-Version. Bitte neue Version bereitstellen.', '⚠️', 'warning', 6000);
+        } else {
+          showToast(`Verbindung & Token ok (Backend v${data.version}).`, '✅', 'success', 4000);
+        }
         updateShareButton();
       } else {
         showToast('Antwort erhalten, aber unerwartetes Format.', '⚠️', 'warning', 4000);
@@ -483,7 +1080,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Paste from Clipboard Button
   if (pasteClipboardBtn) {
     pasteClipboardBtn.addEventListener('click', async () => {
       try {
@@ -506,7 +1102,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Force Reload & Cache Purge Button
   if (forceReloadBtn) {
     forceReloadBtn.addEventListener('click', async () => {
       showToast('Cache wird geleert...', '🔄');
@@ -516,23 +1111,33 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if ('serviceWorker' in navigator) {
         const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const reg of registrations) {
-          await reg.unregister();
-        }
+        for (const reg of registrations) await reg.unregister();
       }
-      setTimeout(() => {
-        window.location.reload(true);
-      }, 500);
+      setTimeout(() => window.location.reload(), 500);
     });
   }
 
-  // Service Worker Registration (v2026)
+  // ---------- Init ----------
+  setPayer(currentPayer);
+  setType(currentType);
+  setToday();
+  updateConnectionStatus();
+  renderAll();
+  loadData(true);
+  syncOfflineQueue();
+
+  // Wenn die App aus dem Hintergrund zurückkommt: Daten auffrischen
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') loadData(false);
+  });
+
+  // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=2026')
+      navigator.serviceWorker.register('./sw.js?v=3.0')
         .then((reg) => {
-          reg.update(); // Force check for sw update
-          console.log('Service Worker v2026 aktiv.');
+          reg.update();
+          console.log('Service Worker v3.0 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
