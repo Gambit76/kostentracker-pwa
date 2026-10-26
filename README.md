@@ -24,7 +24,7 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 - Backend liefert jetzt alle Einträge der letzten 3 Monate (mind. 150) für den Monatsabschluss.
 
 ### Update von v3.0 auf v3.1
-1. `Code.gs` v3.1 (lokal, nicht im Git) in den Apps-Script-Editor kopieren und speichern.
+1. `Code.example.gs` in den Apps-Script-Editor kopieren, bei `SECRET_TOKEN` dein Token eintragen und speichern. (Die echte `Code.gs` mit Token ist per `.gitignore` vom Git ausgeschlossen.)
 2. **Bereitstellen ➔ Bereitstellungen verwalten ➔ Stift ➔ Version: „Neue Version“ ➔ Bereitstellen.**
 3. App schließen und neu öffnen. In ⚙️ → „Verbindung testen“ sollte „Backend v3.1“ melden; dann erscheint „✈️ Reise“.
 
@@ -53,7 +53,7 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
    `https://docs.google.com/spreadsheets/d/1eXKinN7XlZgBYFjYWvohMCboojTI4on0tAR-xp1M67U/`
 2. Klicke im oberen Menü auf **Erweiterungen ➔ Apps Script**.
 3. Lösche den vorhandenen Dummy-Code im Editor.
-4. Kopiere den gesamten Inhalt aus der Datei [`Code.gs`](./Code.gs) und füge ihn ein.
+4. Kopiere den gesamten Inhalt aus [`Code.example.gs`](./Code.example.gs), füge ihn ein und ersetze `HIER_TOKEN_EINTRAGEN` durch dein eigenes Token (dasselbe wie in der App unter ⚙️).
 5. Klicke auf das **Speichern-Symbol** (Diskette) oder drücke `Cmd + S`.
 6. *(Optionaler Test)*: Wähle oben in der Funktionsliste `testReadData` aus und klicke auf **Ausführen**. Bestätige beim ersten Mal die Berechtigungsabfrage deines Google-Kontos. Im Ausführungsprotokoll erscheinen Anzahl Einträge, aktueller Monat und Top-Positionen (es wird nichts geschrieben).
 
