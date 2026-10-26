@@ -1,8 +1,14 @@
 /**
  * =========================================================================
- * Kostentracker Google Apps Script Backend  (v3.1 – Okt. 2026)
+ * Kostentracker Google Apps Script Backend  (v3.2 – Okt. 2026)
  * Tabellenblatt: "Familie Variable Kosten"
- * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise
+ * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID
+ *
+ * Neu in v3.2:
+ *  - Spalte H "ID": feste, fortlaufende Nummer je Eintrag. Bearbeiten und Löschen
+ *    finden die Zeile über die ID statt über die Zeilennummer (sortieren/einfügen
+ *    im Sheet ist damit unkritisch). Zeilen ohne ID (z. B. von Hand im Sheet
+ *    ergänzt) bekommen beim nächsten Laden automatisch eine.
  *
  * Neu in v3.1:
  *  - Typ "Reise" mit Reisename in Spalte G (z. B. "2026-10 Teneriffa")
@@ -38,11 +44,11 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.1"
+  VERSION: "3.2"
 };
 
-const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7 };
-const NUM_COLS = 7;
+const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8 };
+const NUM_COLS = 8;
 
 /* ------------------------------------------------------------------ */
 /*  Positions-Vereinheitlichung (identische Logik in app.js)           */
@@ -163,6 +169,11 @@ function doGet(e) {
       return createJsonResponse({ success: false, error: "Ungültiges Sicherheits-Token.", code: "AUTH" });
     }
     if (action === "data") {
+      // IDs für neue/manuelle Zeilen vergeben (nur mit Sperre, sonst beim nächsten Mal)
+      const lock = LockService.getScriptLock();
+      if (lock.tryLock(5000)) {
+        try { ensureIds(getSheet()); } finally { lock.releaseLock(); }
+      }
       return createJsonResponse(buildDataResponse());
     }
     return createJsonResponse({ success: false, error: "Unbekannte Aktion: " + action });
@@ -230,7 +241,65 @@ function validateEntry(data) {
 }
 
 function entryToRow(entry) {
-  return [entry.position, entry.amount, entry.date, entry.paidBy, entry.comment, entry.type, entry.trip || ""];
+  return [entry.position, entry.amount, entry.date, entry.paidBy, entry.comment, entry.type, entry.trip || "", entry.id || ""];
+}
+
+/* ------------------------------------------------------------------ */
+/*  IDs                                                                */
+/* ------------------------------------------------------------------ */
+function parseId(val) {
+  const n = Number(val);
+  return n > 0 && Math.floor(n) === n ? n : 0;
+}
+
+function readIds(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  return sheet.getRange(2, COL.ID, lastRow - 1, 1).getValues().map(function (r) { return parseId(r[0]); });
+}
+
+function nextId(sheet) {
+  return readIds(sheet).reduce(function (m, id) { return Math.max(m, id); }, 0) + 1;
+}
+
+/** Vergibt fehlende oder doppelte IDs (Zeilen mit Inhalt), schreibt Spalte H nur bei Änderungen. */
+function ensureIds(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  const data = sheet.getRange(2, 1, lastRow - 1, NUM_COLS).getValues();
+  let max = 0;
+  data.forEach(function (r) { max = Math.max(max, parseId(r[COL.ID - 1])); });
+  const seen = {};
+  let changed = 0;
+  const ids = data.map(function (r) {
+    const hasContent = String(r[0] || "").trim() !== "" || String(r[1] || "").trim() !== "";
+    let id = parseId(r[COL.ID - 1]);
+    if (hasContent && (!id || seen[id])) { id = ++max; changed++; }
+    if (id) seen[id] = true;
+    return [hasContent ? id : (r[COL.ID - 1] === "" ? "" : r[COL.ID - 1])];
+  });
+  if (changed) sheet.getRange(2, COL.ID, ids.length, 1).setValues(ids);
+  return changed;
+}
+
+/** Findet die Zeile zu einer ID; ohne ID (ältere App) wird die übergebene Zeilennummer genutzt. */
+function resolveRow(sheet, data) {
+  const id = parseId(data.id);
+  if (id) {
+    const ids = readIds(sheet);
+    const idx = ids.indexOf(id);
+    if (idx === -1) return { error: "Eintrag nicht mehr vorhanden – bitte Verlauf neu laden." };
+    const row = idx + 2;
+    if (data.expected) {
+      const problem = checkExpected(sheet, row, data.expected);
+      if (problem) return { error: problem };
+    }
+    return { row: row, id: id };
+  }
+  const problem = checkExpected(sheet, data.row, data.expected);
+  if (problem) return { error: problem };
+  const row = Number(data.row);
+  return { row: row, id: parseId(sheet.getRange(row, COL.ID).getValue()) };
 }
 
 function formatRow(sheet, row) {
@@ -242,9 +311,10 @@ function handleAdd(data) {
   // Doppelbuchungs-Schutz: gleiche clientId innerhalb von 6 h wird nicht erneut geschrieben
   const cache = CacheService.getScriptCache();
   if (data.clientId) {
-    const seenRow = cache.get("cid_" + data.clientId);
-    if (seenRow) {
-      return { success: true, duplicate: true, row: Number(seenRow), message: "Eintrag war bereits gespeichert." };
+    const seen = cache.get("cid_" + data.clientId);
+    if (seen) {
+      const parts = String(seen).split(":");
+      return { success: true, duplicate: true, row: Number(parts[0]), id: Number(parts[1]) || null, message: "Eintrag war bereits gespeichert." };
     }
   }
 
@@ -252,15 +322,17 @@ function handleAdd(data) {
   if (v.error) return { success: false, error: v.error };
 
   const sheet = getSheet();
+  v.entry.id = nextId(sheet);
   sheet.appendRow(entryToRow(v.entry));
   const lastRow = sheet.getLastRow();
   formatRow(sheet, lastRow);
 
-  if (data.clientId) cache.put("cid_" + data.clientId, String(lastRow), 21600);
+  if (data.clientId) cache.put("cid_" + data.clientId, lastRow + ":" + v.entry.id, 21600);
 
   return {
     success: true,
     row: lastRow,
+    id: v.entry.id,
     message: "Eintrag erfolgreich in Zeile " + lastRow + " gespeichert.",
     data: serializeEntry(v.entry, lastRow)
   };
@@ -285,10 +357,10 @@ function checkExpected(sheet, row, expected) {
 
 function handleUpdate(data) {
   const sheet = getSheet();
-  const problem = checkExpected(sheet, data.row, data.expected);
-  if (problem) return { success: false, error: problem, code: "CONFLICT" };
+  const target = resolveRow(sheet, data);
+  if (target.error) return { success: false, error: target.error, code: "CONFLICT" };
 
-  const row = Number(data.row);
+  const row = target.row;
   const incoming = data.entry || {};
   // Ältere App-Versionen kennen kein Reise-Feld: vorhandenen Reisenamen beibehalten
   if (incoming.trip === undefined && normalizeType(incoming.type) === "Reise") {
@@ -296,6 +368,7 @@ function handleUpdate(data) {
   }
   const v = validateEntry(incoming);
   if (v.error) return { success: false, error: v.error };
+  v.entry.id = target.id || nextId(sheet);
 
   sheet.getRange(row, 1, 1, NUM_COLS).setValues([entryToRow(v.entry)]);
   formatRow(sheet, row);
@@ -304,10 +377,10 @@ function handleUpdate(data) {
 
 function handleDelete(data) {
   const sheet = getSheet();
-  const problem = checkExpected(sheet, data.row, data.expected);
-  if (problem) return { success: false, error: problem, code: "CONFLICT" };
-  sheet.deleteRow(Number(data.row));
-  return { success: true, message: "Eintrag gelöscht." };
+  const target = resolveRow(sheet, data);
+  if (target.error) return { success: false, error: target.error, code: "CONFLICT" };
+  sheet.deleteRow(target.row);
+  return { success: true, row: target.row, id: target.id, message: "Eintrag gelöscht." };
 }
 
 /* ------------------------------------------------------------------ */
@@ -343,7 +416,8 @@ function buildDataResponse() {
       paidBy: normalizePayer(r[3]),
       comment: String(r[4] || "").trim(),
       type: type,
-      trip: type === "Reise" ? normalizeTrip(r[6]) : ""
+      trip: type === "Reise" ? normalizeTrip(r[6]) : "",
+      id: parseId(r[COL.ID - 1]) || null
     };
     entries.push(serializeEntry(entry, i + 2, tz));
 
@@ -423,6 +497,7 @@ function serializeEntry(entry, row, tz) {
   tz = tz || SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
   const d = entry.date;
   return {
+    id: entry.id || null,
     row: row,
     position: entry.position,
     amount: entry.amount,
@@ -473,4 +548,5 @@ function testReadData() {
   Logger.log("Top-Vorschläge Familie: " + JSON.stringify(res.suggestions["Familie"].slice(0, 10)));
   Logger.log("Reisen: " + JSON.stringify(res.trips));
   Logger.log("Backend-Version: " + res.version);
+  Logger.log("Einträge ohne ID: " + res.entries.filter(function (e) { return !e.id; }).length + " (von " + res.entries.length + " im Verlauf)");
 }

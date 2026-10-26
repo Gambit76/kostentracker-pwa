@@ -1,5 +1,9 @@
 /**
- * Kostentracker PWA - Client Logic (v3.1)
+ * Kostentracker PWA - Client Logic (v3.2)
+ *
+ * Neu in v3.2:
+ *  - Einträge werden über eine feste ID (Spalte H) bearbeitet/gelöscht statt über die Zeilennummer
+ *    (bei älterem Backend ohne ID weiterhin über die Zeilennummer)
  *
  * Neu in v3.1:
  *  - Typ "Reise" mit Reisename (Spalte G) – erscheint erst, wenn das Backend v3.1 läuft
@@ -848,7 +852,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (pending) meta.push('⏳ wartet auf Sync');
     const cls = personal ? 'personal' : isTrip ? 'trip' : 'family';
     return `
-      <button type="button" class="entry-item ${cls} ${pending ? 'pending' : ''}" ${pending ? 'disabled' : `data-row="${entry.row}"`}>
+      <button type="button" class="entry-item ${cls} ${pending ? 'pending' : ''}" ${pending ? 'disabled' : `data-key="${entryKey(entry)}"`}>
         <span class="entry-info">
           <span class="entry-pos">${escapeHtml(entry.position)}</span>
           <span class="entry-meta">${escapeHtml(meta.join(' · '))}</span>
@@ -899,14 +903,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   historyList.addEventListener('click', (e) => {
-    const item = e.target.closest('.entry-item[data-row]');
+    const item = e.target.closest('.entry-item[data-key]');
     if (!item || !sheetData) return;
-    const row = Number(item.dataset.row);
-    const entry = (sheetData.entries || []).find(x => x.row === row);
+    const key = item.dataset.key;
+    const entry = (sheetData.entries || []).find(x => entryKey(x) === key);
     if (entry) openEdit(entry);
   });
 
   // ---------- Bearbeiten / Löschen ----------
+  // Feste ID ab Backend v3.2, sonst Zeilennummer
+  function entryKey(entry) {
+    return entry.id ? `i${entry.id}` : `r${entry.row}`;
+  }
+
   let deleteArmed = false;
   function resetDeleteBtn() {
     deleteArmed = false;
@@ -925,7 +934,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editTrip.value = entry.trip || '';
     updateEditTripGroup();
     editComment.value = entry.comment || '';
-    editRowNote.textContent = `Zeile ${entry.row} im Sheet`;
+    editRowNote.textContent = entry.id ? `ID ${entry.id} · Zeile ${entry.row} im Sheet` : `Zeile ${entry.row} im Sheet`;
     resetDeleteBtn();
     editDialog.showModal();
   }
@@ -977,6 +986,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tripsEnabled()) entryBody.trip = editTripName;
       const result = await apiPost({
         action: 'update',
+        id: editingEntry.id || undefined,
         row: editingEntry.row,
         expected: { position: editingEntry.position, amount: editingEntry.amount },
         entry: entryBody
@@ -984,7 +994,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result && result.success) {
         adjustMonth(editingEntry, -1);
         const updated = result.data;
-        sheetData.entries = sheetData.entries.map(x => (x.row === editingEntry.row ? updated : x));
+        const editedKey = entryKey(editingEntry);
+        sheetData.entries = sheetData.entries.map(x => (entryKey(x) === editedKey ? updated : x));
         adjustMonth(updated, +1);
         persistData();
         editDialog.close();
@@ -1019,15 +1030,17 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const result = await apiPost({
         action: 'delete',
+        id: editingEntry.id || undefined,
         row: editingEntry.row,
         expected: { position: editingEntry.position, amount: editingEntry.amount }
       });
       if (result && result.success) {
         adjustMonth(editingEntry, -1);
-        const removedRow = editingEntry.row;
+        const removedKey = entryKey(editingEntry);
+        const removedRow = result.row || editingEntry.row;
         // Nachfolgende Zeilen rutschen im Sheet eine Zeile nach oben
         sheetData.entries = sheetData.entries
-          .filter(x => x.row !== removedRow)
+          .filter(x => entryKey(x) !== removedKey)
           .map(x => (x.row > removedRow ? { ...x, row: x.row - 1 } : x));
         persistData();
         editDialog.close();
@@ -1417,10 +1430,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.1')
+      navigator.serviceWorker.register('./sw.js?v=3.2')
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.1 aktiv.');
+          console.log('Service Worker v3.2 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });

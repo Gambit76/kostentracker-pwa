@@ -16,7 +16,17 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.1 (Oktober 2026)
+## 🆕 Version 3.2 (Oktober 2026)
+- **Feste ID je Eintrag (Spalte H „ID“):** Bearbeiten und Löschen finden den Eintrag über die ID, nicht mehr über die Zeilennummer. Sortieren, Filtern oder Zeilen-Einfügen im Sheet ist damit unkritisch.
+- Bestehende Einträge sind fortlaufend nummeriert (1 = ältester Eintrag). Neue Einträge bekommen automatisch die nächste Nummer; von Hand im Sheet ergänzte Zeilen (ohne ID) erhalten beim nächsten Laden der App eine ID, doppelte IDs werden korrigiert.
+- **Bitte Spalte H nicht von Hand ändern.** Abwärtskompatibel: Mit Backend v3.1 arbeitet die App weiter über die Zeilennummer.
+
+### Update von v3.1 auf v3.2
+1. `Code.example.gs` (bzw. deine lokale `Code.gs` mit Token) in Apps Script einfügen, Token prüfen, speichern.
+2. **Bereitstellen ➔ Bereitstellungen verwalten ➔ Stift ➔ „Neue Version“ ➔ Bereitstellen.**
+3. App neu öffnen – ⚙️ „Verbindung testen“ meldet „Backend v3.2“.
+
+## Version 3.1 (Oktober 2026)
 - **Typ „Reise“** (dritter Umschalter, blau) mit Reiseauswahl im Format `JJJJ-MM Name` (z. B. `2026-10 Teneriffa`), gespeichert in **Spalte G „Reise“**. Reisekosten zählen **nicht** im monatlichen Familien-Ausgleich und nicht in der Pivot (Filter `Typ ∈ {leer, Familie}`).
 - **Übersicht → Reisen:** Summe pro Reise, wer was bezahlt hat, Ausgleich 50/50 und Button „Für Reisenotiz kopieren“ (`ist_gesamt`, `anteil_sonja` für die Obsidian-Reisenotiz).
 - **Übersicht → Monatsabschluss:** Anschaffungen ≥ 100 € (persönlich, ohne Lebensmittel/Kleidung/Gastro), Kleidung und Lebensmittel des gewählten Monats – als Obsidian-Properties zum Kopieren. Kategorien werden automatisch aus Position/Kommentar erkannt (`CATEGORY_RULES` in `app.js`).
