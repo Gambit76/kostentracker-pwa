@@ -1,8 +1,13 @@
 /**
  * =========================================================================
- * Kostentracker Google Apps Script Backend  (v3.2 – Okt. 2026)
+ * Kostentracker Google Apps Script Backend  (v3.3 – Okt. 2026)
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID
+ *
+ * Neu in v3.3:
+ *  - Typ "Anschaffung" für gemeinsame Anschaffungen (Möbel, TV, Haushaltsgeräte …):
+ *    zählt NICHT im monatlichen Familien-Ausgleich, wird aber je zur Hälfte den
+ *    Monatskosten von Sascha und Sonja zugerechnet (Antwort-Feld months[].shared)
  *
  * Neu in v3.2:
  *  - Spalte H "ID": feste, fortlaufende Nummer je Eintrag. Bearbeiten und Löschen
@@ -36,7 +41,7 @@
 const CONFIG = {
   SHEET_NAME: "Familie Variable Kosten",
   SECRET_TOKEN: "HIER_TOKEN_EINTRAGEN", // eigenes Token eintragen (identisch mit ⚙️ in der App) – NIE committen
-  TYPES: ["Familie", "Persönlich", "Reise"],
+  TYPES: ["Familie", "Persönlich", "Reise", "Anschaffung"],
   DEFAULT_TYPE: "Familie",
   PAYERS: ["Sascha", "Sonja"],
   RECENT_LIMIT: 150,        // mindestens so viele letzte Einträge gehen an den Verlauf …
@@ -44,7 +49,7 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.2"
+  VERSION: "3.3"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8 };
@@ -133,6 +138,7 @@ function normalizeType(val) {
   const s = String(val || "").trim().toLowerCase();
   if (s === "persönlich" || s === "persoenlich" || s === "personal" || s === "privat") return "Persönlich";
   if (s === "reise" || s === "urlaub" || s === "trip") return "Reise";
+  if (s === "anschaffung" || s === "gemeinsam" || s === "gemeinsame anschaffung" || s === "shared") return "Anschaffung";
   return CONFIG.DEFAULT_TYPE;
 }
 
@@ -395,7 +401,7 @@ function buildDataResponse() {
   const entries = [];
   const months = {};
   const trips = {};
-  const suggestionCounts = { "Familie": {}, "Persönlich": {}, "Reise": {} };
+  const suggestionCounts = { "Familie": {}, "Persönlich": {}, "Reise": {}, "Anschaffung": {} };
   const now = new Date();
   const suggestionCutoff = new Date(now.getFullYear(), now.getMonth() - CONFIG.SUGGESTION_MONTHS, 1);
   const recentCutoffIso = Utilities.formatDate(
@@ -435,9 +441,10 @@ function buildDataResponse() {
 
     if (date && !isNaN(amount)) {
       const key = Utilities.formatDate(date, tz, "yyyy-MM");
-      if (!months[key]) months[key] = { month: key, family: {}, personal: {}, trip: {}, count: 0 };
+      if (!months[key]) months[key] = { month: key, family: {}, personal: {}, trip: {}, shared: {}, count: 0 };
       const bucket = entry.type === "Persönlich" ? months[key].personal
         : entry.type === "Reise" ? months[key].trip
+        : entry.type === "Anschaffung" ? months[key].shared
         : months[key].family;
       bucket[entry.paidBy] = round2((bucket[entry.paidBy] || 0) + amount);
       months[key].count++;
@@ -488,7 +495,8 @@ function buildDataResponse() {
     suggestions: {
       "Familie": topList(suggestionCounts["Familie"]),
       "Persönlich": topList(suggestionCounts["Persönlich"]),
-      "Reise": topList(suggestionCounts["Reise"])
+      "Reise": topList(suggestionCounts["Reise"]),
+      "Anschaffung": topList(suggestionCounts["Anschaffung"])
     }
   };
 }

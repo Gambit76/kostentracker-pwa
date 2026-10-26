@@ -1,5 +1,10 @@
 /**
- * Kostentracker PWA - Client Logic (v3.2)
+ * Kostentracker PWA - Client Logic (v3.3)
+ *
+ * Neu in v3.3:
+ *  - Typ "Anschaffung" für gemeinsame Anschaffungen (Möbel, TV, Haushaltsgeräte):
+ *    nicht im Ausgleich, aber je 50 % in den Monatskosten von Sascha und Sonja
+ *    (erscheint erst, wenn das Backend v3.3 läuft)
  *
  * Neu in v3.2:
  *  - Einträge werden über eine feste ID (Spalte H) bearbeitet/gelöscht statt über die Zeilennummer
@@ -28,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnTypeFamily = $('btn-type-family');
   const btnTypePersonal = $('btn-type-personal');
   const btnTypeTrip = $('btn-type-trip');
+  const btnTypeShared = $('btn-type-shared');
   const tripSelect = $('trip-select');
   const tripNewInput = $('trip-new-input');
   const typeHint = $('type-hint');
@@ -76,6 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const closePerson = $('close-person');
   const tripsCard = $('trips-card');
   const summaryTrips = $('summary-trips');
+  const sharedCard = $('shared-card');
+  const summaryShared = $('summary-shared');
 
   // Edit dialog
   const editDialog = $('edit-dialog');
@@ -89,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const editTrip = $('edit-trip');
   const tripSuggestionList = $('trip-suggestions');
   const editTypeTripOption = $('edit-type-trip');
+  const editTypeSharedOption = $('edit-type-shared');
   const editRowNote = $('edit-row-note');
   const editSaveBtn = $('edit-save-btn');
   const editDeleteBtn = $('edit-delete-btn');
@@ -146,6 +155,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const TYPE_FAMILY = 'Familie';
   const TYPE_PERSONAL = 'Persönlich';
   const TYPE_TRIP = 'Reise';
+  const TYPE_SHARED = 'Anschaffung';
+  const ALL_TYPES = [TYPE_FAMILY, TYPE_PERSONAL, TYPE_TRIP, TYPE_SHARED];
   const NEW_TRIP = '__new__';
   const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -154,7 +165,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const DEFAULT_CHIPS = {
     [TYPE_FAMILY]: ['Edeka', 'Rewe', 'Bäckerei', 'Edeka + Bäckerei', 'Kraus', 'Kleidung Kinder', 'Flaschenpost', 'Happycoffee', 'Baumarkt', 'Apotheke'],
     [TYPE_PERSONAL]: ['Mittagessen', 'Kaffee', 'Tanken', 'Kleidung', 'Sport', 'Bücher', 'Geschenk', 'Parken', 'Friseur', 'Freizeit'],
-    [TYPE_TRIP]: ['Flug', 'Unterkunft', 'Mietwagen', 'Restaurant', 'Supermarkt', 'Eintritt', 'Ausflug', 'Taxi', 'Parken', 'Souvenirs']
+    [TYPE_TRIP]: ['Flug', 'Unterkunft', 'Mietwagen', 'Restaurant', 'Supermarkt', 'Eintritt', 'Ausflug', 'Taxi', 'Parken', 'Souvenirs'],
+    [TYPE_SHARED]: ['Möbel', 'TV', 'Elektrogerät', 'Haushaltsgerät', 'Küche', 'Garten', 'Lampe', 'Teppich', 'IKEA', 'Bauhaus']
   };
 
   // ---------- Kategorien (für den Monatsabschluss) ----------
@@ -183,6 +195,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const CHIP_ICONS = [
+    [/möbel|sofa|couch|tisch|stuhl|schrank|regal|bett|ikea|teppich|lampe/i, '🛋️'],
+    [/\btv\b|fernseh|elektro|samsung|saturn|media ?markt|beamer/i, '📺'],
+    [/küche|kühlschrank|waschmaschine|trockner|spülmaschine|haushaltsgerät/i, '🧊'],
+    [/garten|pflanze/i, '🌱'],
     [/edeka|rewe|aldi|lidl|supermarkt|einkauf|kaufland|netto/i, '🛒'],
     [/bäcker|brot|kuchen/i, '🥐'],
     [/flaschenpost|getränk/i, '🥤'],
@@ -291,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---------- State ----------
   let currentPayer = store.get('kostentracker_payer', 'Sascha');
-  let currentType = [TYPE_PERSONAL, TYPE_TRIP].includes(store.get('kostentracker_type', TYPE_FAMILY))
+  let currentType = [TYPE_PERSONAL, TYPE_TRIP, TYPE_SHARED].includes(store.get('kostentracker_type', TYPE_FAMILY))
     ? store.get('kostentracker_type') : TYPE_FAMILY;
   let localTrips = store.getJSON('kostentracker_trips_local', []);
   let offlineQueue = store.getJSON('kostentracker_queue', []);
@@ -373,29 +389,35 @@ document.addEventListener('DOMContentLoaded', () => {
   const TYPE_HINTS = {
     [TYPE_FAMILY]: 'Geteilte Familienkosten – zählt für den Ausgleich',
     [TYPE_PERSONAL]: 'Nur für dich – zählt NICHT für den Familien-Ausgleich',
-    [TYPE_TRIP]: 'Reisekosten – werden pro Reise abgerechnet, nicht im Monatsausgleich'
+    [TYPE_TRIP]: 'Reisekosten – werden pro Reise abgerechnet, nicht im Monatsausgleich',
+    [TYPE_SHARED]: 'Gemeinsame Anschaffung – je 50 % in euren Monatskosten, nicht im Ausgleich'
   };
   const SUBMIT_LABELS = {
     [TYPE_FAMILY]: 'Familienkosten speichern',
     [TYPE_PERSONAL]: 'Persönlich speichern',
-    [TYPE_TRIP]: 'Reisekosten speichern'
+    [TYPE_TRIP]: 'Reisekosten speichern',
+    [TYPE_SHARED]: 'Anschaffung speichern'
   };
 
   // Läuft im Backend schon v3.1 (kennt Typ "Reise")?
-  function tripsEnabled() {
-    return !!(sheetData && Array.isArray(sheetData.types) && sheetData.types.includes(TYPE_TRIP));
+  function typeEnabled(type) {
+    return !!(sheetData && Array.isArray(sheetData.types) && sheetData.types.includes(type));
   }
+  function tripsEnabled() { return typeEnabled(TYPE_TRIP); }
+  function sharedEnabled() { return typeEnabled(TYPE_SHARED); }
 
   function setType(type) {
     let persist = true;
-    if (type === TYPE_TRIP && !tripsEnabled()) { type = TYPE_FAMILY; persist = false; }
-    currentType = [TYPE_PERSONAL, TYPE_TRIP].includes(type) ? type : TYPE_FAMILY;
+    if ((type === TYPE_TRIP || type === TYPE_SHARED) && !typeEnabled(type)) { type = TYPE_FAMILY; persist = false; }
+    currentType = ALL_TYPES.includes(type) ? type : TYPE_FAMILY;
     if (persist) store.set('kostentracker_type', currentType);
     document.body.classList.toggle('mode-personal', currentType === TYPE_PERSONAL);
     document.body.classList.toggle('mode-trip', currentType === TYPE_TRIP);
+    document.body.classList.toggle('mode-shared', currentType === TYPE_SHARED);
     btnTypeFamily.classList.toggle('active', currentType === TYPE_FAMILY);
     btnTypePersonal.classList.toggle('active', currentType === TYPE_PERSONAL);
     btnTypeTrip.classList.toggle('active', currentType === TYPE_TRIP);
+    btnTypeShared.classList.toggle('active', currentType === TYPE_SHARED);
     typeHint.textContent = TYPE_HINTS[currentType];
     btnLabel.textContent = SUBMIT_LABELS[currentType];
     if (currentType === TYPE_TRIP) renderTripSelect();
@@ -408,6 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnTypeFamily.addEventListener('click', () => setType(TYPE_FAMILY));
   btnTypePersonal.addEventListener('click', () => setType(TYPE_PERSONAL));
   btnTypeTrip.addEventListener('click', () => setType(TYPE_TRIP));
+  btnTypeShared.addEventListener('click', () => setType(TYPE_SHARED));
 
   // ---------- Reisen ----------
   function knownTrips() {
@@ -460,11 +483,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyCapabilities() {
     const on = tripsEnabled();
+    const sharedOn = sharedEnabled();
     document.body.classList.toggle('trips-enabled', on);
-    if (on && !editTypeTripOption.parentNode) editType.appendChild(editTypeTripOption);
-    if (!on && editTypeTripOption.parentNode) editTypeTripOption.remove();
+    document.body.classList.toggle('shared-enabled', sharedOn);
+    // Reihenfolge im Bearbeiten-Dialog: Familie, Persönlich, Reise, Anschaffung
+    editTypeTripOption.remove();
+    editTypeSharedOption.remove();
+    if (on) editType.appendChild(editTypeTripOption);
+    if (sharedOn) editType.appendChild(editTypeSharedOption);
     if (!on && currentType === TYPE_TRIP) setType(TYPE_FAMILY);
-    if (on && store.get('kostentracker_type') === TYPE_TRIP && currentType !== TYPE_TRIP) setType(TYPE_TRIP);
+    if (!sharedOn && currentType === TYPE_SHARED) setType(TYPE_FAMILY);
+    const stored = store.get('kostentracker_type');
+    if ((stored === TYPE_TRIP && on) || (stored === TYPE_SHARED && sharedOn)) {
+      if (currentType !== stored) setType(stored);
+    }
     if (on) renderTripSelect();
   }
 
@@ -527,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSuggestions() {
     const s = (sheetData && sheetData.suggestions) || {};
     const primary = (s[currentType] || []).map(x => x.position);
-    const other = [TYPE_FAMILY, TYPE_PERSONAL, TYPE_TRIP]
+    const other = ALL_TYPES
       .filter(t => t !== currentType)
       .flatMap(t => (s[t] || []).map(x => x.position));
     const all = [...new Set([...primary, ...other])];
@@ -618,11 +650,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const key = entry.iso.slice(0, 7);
     let m = (sheetData.months || []).find(x => x.month === key);
     if (!m) {
-      m = { month: key, family: {}, personal: {}, trip: {}, count: 0 };
+      m = { month: key, family: {}, personal: {}, trip: {}, shared: {}, count: 0 };
       sheetData.months = [...(sheetData.months || []), m].sort((a, b) => (a.month < b.month ? 1 : -1));
     }
     if (!m.trip) m.trip = {};
-    const bucket = entry.type === TYPE_PERSONAL ? m.personal : entry.type === TYPE_TRIP ? m.trip : m.family;
+    if (!m.shared) m.shared = {};
+    const bucket = entry.type === TYPE_PERSONAL ? m.personal
+      : entry.type === TYPE_TRIP ? m.trip
+      : entry.type === TYPE_SHARED ? m.shared
+      : m.family;
     bucket[entry.paidBy] = Math.round(((bucket[entry.paidBy] || 0) + sign * entry.amount) * 100) / 100;
     m.count += sign;
     if (entry.type === TYPE_TRIP) adjustTrip(entry, sign);
@@ -709,13 +745,19 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result && result.success) {
         if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
         const label = currentType === TYPE_PERSONAL ? 'Persönlich gespeichert'
-          : currentType === TYPE_TRIP ? `Reise ${trip}` : 'Im Sheet gespeichert';
+          : currentType === TYPE_TRIP ? `Reise ${trip}`
+          : currentType === TYPE_SHARED ? 'Gemeinsame Anschaffung' : 'Im Sheet gespeichert';
         showToast(`${label}: ${position} ${fmtEur(numericAmount)}`, '✅', 'success');
-        if (trip) rememberTrip(trip);
-        if (result.data && !result.duplicate) {
-          applyLocalAdd(result.data);
-          persistData();
-          renderAll();
+        // Anzeige-Fehler dürfen einen gespeicherten Eintrag nie in die Offline-Warteschlange schieben
+        try {
+          if (trip) rememberTrip(trip);
+          if (result.data && !result.duplicate) {
+            applyLocalAdd(result.data);
+            persistData();
+            renderAll();
+          }
+        } catch (renderErr) {
+          console.error('Anzeige nach dem Speichern fehlgeschlagen:', renderErr);
         }
         resetFormAfterSubmit();
         // Im Hintergrund frische Daten holen (Zeilennummern, Summen)
@@ -845,12 +887,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function entryHtml(entry, pending) {
     const personal = entry.type === TYPE_PERSONAL;
     const isTrip = entry.type === TYPE_TRIP;
+    const isShared = entry.type === TYPE_SHARED;
     const meta = [entry.paidBy];
     if (personal) meta.push('Persönlich');
     if (isTrip) meta.push('✈️ ' + (entry.trip || 'Reise'));
+    if (isShared) meta.push('🛋️ Anschaffung (je 50 %)');
     if (entry.comment) meta.push(entry.comment);
     if (pending) meta.push('⏳ wartet auf Sync');
-    const cls = personal ? 'personal' : isTrip ? 'trip' : 'family';
+    const cls = personal ? 'personal' : isTrip ? 'trip' : isShared ? 'shared' : 'family';
     return `
       <button type="button" class="entry-item ${cls} ${pending ? 'pending' : ''}" ${pending ? 'disabled' : `data-key="${entryKey(entry)}"`}>
         <span class="entry-info">
@@ -929,7 +973,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editPosition.value = entry.position;
     editDate.value = entry.iso || '';
     editPayer.value = entry.paidBy === 'Sonja' ? 'Sonja' : 'Sascha';
-    editType.value = [TYPE_PERSONAL, TYPE_TRIP].includes(entry.type) && (entry.type !== TYPE_TRIP || tripsEnabled())
+    editType.value = entry.type === TYPE_FAMILY || entry.type === TYPE_PERSONAL || typeEnabled(entry.type)
       ? entry.type : TYPE_FAMILY;
     editTrip.value = entry.trip || '';
     updateEditTripGroup();
@@ -1078,7 +1122,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getMonth(key) {
     const m = sheetData && (sheetData.months || []).find(x => x.month === key);
-    return m || { month: key, family: {}, personal: {}, trip: {}, count: 0 };
+    return m || { month: key, family: {}, personal: {}, trip: {}, shared: {}, count: 0 };
   }
 
   // ---------- Monatsabschluss (Werte für die Obsidian-Monatsnotiz) ----------
@@ -1104,7 +1148,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const person = currentPayer;
     closePerson.textContent = `· ${person}`;
     const key = summaryMonth;
-    const entries = (sheetData.entries || []).filter(e => e.iso && e.iso.slice(0, 7) === key && e.paidBy === person);
+    const monthEntries = (sheetData.entries || []).filter(e => e.iso && e.iso.slice(0, 7) === key);
+    const entries = monthEntries.filter(e => e.paidBy === person);
+    const shared = monthEntries.filter(e => e.type === TYPE_SHARED);
     const recentFrom = sheetData.recentFrom || (() => {
       const isos = (sheetData.entries || []).map(e => e.iso).filter(Boolean).sort();
       return isos[0] || '';
@@ -1114,11 +1160,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const personal = entries.filter(e => e.type === TYPE_PERSONAL);
     const anschaffungen = personal.filter(isAnschaffung);
     const kleidung = personal.filter(e => categoryOf(e) === 'Kleidung');
-    const lebensmittel = entries.filter(e => e.type !== TYPE_TRIP && categoryOf(e) === 'Lebensmittel');
+    const lebensmittel = entries.filter(e => (e.type === TYPE_FAMILY || e.type === TYPE_PERSONAL) && categoryOf(e) === 'Lebensmittel');
     const familyBig = entries.filter(e => e.type === TYPE_FAMILY && isAnschaffung(e));
     const sum = (list) => Math.round(list.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100) / 100;
 
-    const sA = sum(anschaffungen), sK = sum(kleidung), sL = sum(lebensmittel);
+    const sShared = Math.round(sum(shared) / 2 * 100) / 100;
+    const sA = Math.round((sum(anschaffungen) + sShared) * 100) / 100, sK = sum(kleidung), sL = sum(lebensmittel);
     const yaml = `anschaffungen: ${Math.round(sA)}\nkleidung: ${Math.round(sK)}\nlebensmittel: ${Math.round(sL)}`;
     const listHtml = (list) => list.length
       ? `<div class="close-list">${list.map(e => `<div><span>${escapeHtml(e.date)} · ${escapeHtml(e.position)}</span><span>${fmtEur(e.amount)}</span></div>`).join('')}</div>`
@@ -1128,13 +1175,36 @@ document.addEventListener('DOMContentLoaded', () => {
       ${complete ? '' : '<div class="muted-note" style="text-align:left; color:#fbbf24;">⚠️ Für diesen Monat liegen nicht alle Einzelbuchungen in der App vor. Werte sind unvollständig.</div>'}
       <div class="sum-row"><span>Anschaffungen ≥ 100 €${targetSpan(sA, TARGETS.anschaffungen, TARGETS.anschaffungenMax)}</span><span class="val">${fmtEur(sA)}</span></div>
       ${listHtml(anschaffungen)}
+      ${shared.length ? `<div class="close-list">${shared.map(e => `<div><span>${escapeHtml(e.date)} · 🛋️ ${escapeHtml(e.position)} (½ von ${fmtEur(e.amount)})</span><span>${fmtEur(e.amount / 2)}</span></div>`).join('')}</div>` : ''}
       <div class="sum-row"><span>Kleidung</span><span class="val">${fmtEur(sK)}</span></div>
       <div class="sum-row"><span>Lebensmittel (von dir bezahlt)${targetSpan(sL, TARGETS.lebensmittel)}</span><span class="val">${fmtEur(sL)}</span></div>
       ${familyBig.length ? `<div class="muted-note" style="text-align:left;">Familien-Käufe ≥ 100 € von dir (nicht mitgezählt, ggf. selbst addieren):</div>${listHtml(familyBig)}` : ''}
       <pre class="yaml-box" id="close-yaml">${escapeHtml(yaml)}</pre>
       <button type="button" class="icon-btn copy-btn" id="close-copy-btn" data-label="📋 Für Obsidian kopieren">📋 Für Obsidian kopieren</button>
-      <div class="muted-note" style="text-align:left;">Topf, Bargeld und Kontostand kommen aus der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung und Gastro.</div>`;
+      <div class="muted-note" style="text-align:left;">Topf, Bargeld und Kontostand kommen aus der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung und Gastro, plus deine Hälfte der gemeinsamen Anschaffungen.</div>`;
     $('close-copy-btn').addEventListener('click', (e) => copyText(yaml, e.currentTarget));
+  }
+
+  // ---------- Gemeinsame Anschaffungen ----------
+  function renderShared(m) {
+    sharedCard.style.display = sharedEnabled() ? 'flex' : 'none';
+    if (!sharedEnabled()) return;
+    const key = summaryMonth;
+    const list = (sheetData.entries || []).filter(e => e.type === TYPE_SHARED && e.iso && e.iso.slice(0, 7) === key);
+    const total = Object.values(m.shared || {}).reduce((a, b) => a + b, 0);
+    let last12 = 0;
+    for (let i = 0; i < 12; i++) {
+      const mm = getMonth(shiftMonth(currentMonthKey(), -i));
+      last12 += Object.values(mm.shared || {}).reduce((a, b) => a + b, 0);
+    }
+    const items = list.length
+      ? `<div class="close-list">${list.map(e => `<div><span>${escapeHtml(e.date)} · ${escapeHtml(e.position)} · ${escapeHtml(e.paidBy)}</span><span>${fmtEur(e.amount)}</span></div>`).join('')}</div>`
+      : (total > 0 ? '' : '<div class="muted-note" style="text-align:left;">Keine gemeinsamen Anschaffungen in diesem Monat.</div>');
+    summaryShared.innerHTML = `
+      ${items}
+      ${total > 0 ? `<div class="sum-row total"><span>Gesamt</span><span class="val">${fmtEur(total)}</span></div>
+      <div class="sum-row"><span>je Person (50 %)</span><span class="val">${fmtEur(total / 2)}</span></div>` : ''}
+      <div class="muted-note" style="text-align:left;">Zählt nicht im Ausgleich. Letzte 12 Monate: ${fmtEur(last12)} (je ${fmtEur(last12 / 2)})</div>`;
   }
 
   // ---------- Reisen-Saldo ----------
@@ -1203,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTrips();
 
     const m = getMonth(summaryMonth);
+    renderShared(m);
     const fSascha = m.family.Sascha || 0;
     const fSonja = m.family.Sonja || 0;
     const fTotal = fSascha + fSonja;
@@ -1249,8 +1320,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     avgF /= 12; avgP /= 12;
 
-    summaryPersonal.innerHTML = personRows +
-      (pSascha + pSonja === 0 ? '<div class="muted-note" style="text-align:left;">Noch keine persönlichen Kosten in diesem Monat. Zum Erfassen oben „Persönlich“ wählen.</div>' : '') +
+    const sharedTotal = Object.values(m.shared || {}).reduce((a, b) => a + b, 0);
+    const sharedHalf = sharedTotal / 2;
+    const ownTotal = (m.personal[currentPayer] || 0) + sharedHalf;
+    const sharedRows = sharedTotal > 0
+      ? `<div class="sum-row" style="font-size:0.88rem;"><span>＋ ½ gemeinsame Anschaffungen</span><span class="val">${fmtEur(sharedHalf)}</span></div>
+         <div class="sum-row total"><span>Deine Kosten (${currentPayer})</span><span class="val">${fmtEur(ownTotal)}</span></div>`
+      : '';
+    summaryPersonal.innerHTML = personRows + sharedRows +
+      (pSascha + pSonja === 0 && sharedTotal === 0 ? '<div class="muted-note" style="text-align:left;">Noch keine persönlichen Kosten in diesem Monat. Zum Erfassen oben „Persönlich“ wählen.</div>' : '') +
       `<div class="muted-note" style="text-align:left;">Ø pro Monat (12 Monate): Familie ${fmtEur(avgF)} · Persönlich ${currentPayer} ${fmtEur(avgP)}</div>`;
 
     // Trend: letzte 6 Monate bis zum gewählten Monat
@@ -1274,7 +1352,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const when = sheetData.generatedAt ? new Date(sheetData.generatedAt) : null;
     summaryNote.textContent = 'Nur variable Kosten aus „Familie Variable Kosten“' +
-      (tripsEnabled() ? ' · Reisen zählen nicht im Familien-Ausgleich' : '') +
+      (tripsEnabled() ? ' · Reisen' + (sharedEnabled() ? ' und gemeinsame Anschaffungen' : '') + ' zählen nicht im Familien-Ausgleich' : '') +
       (when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '');
   }
 
@@ -1359,8 +1437,8 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('Verbindung ok, aber Token falsch oder fehlt.', '🔒', 'warning', 5000);
         } else if (!data.version) {
           showToast('Verbindung ok – aber alte Code.gs-Version. Bitte neue Version bereitstellen.', '⚠️', 'warning', 6000);
-        } else if (!(data.types || []).includes(TYPE_TRIP)) {
-          showToast(`Verbindung & Token ok (Backend v${data.version}). Für „Reise“ Code.gs v3.1 bereitstellen.`, '✅', 'success', 5000);
+        } else if (!(data.types || []).includes(TYPE_SHARED)) {
+          showToast(`Verbindung & Token ok (Backend v${data.version}). Für alle Typen Code.gs v3.3 bereitstellen.`, '✅', 'success', 5000);
         } else {
           showToast(`Verbindung & Token ok (Backend v${data.version}).`, '✅', 'success', 4000);
         }
@@ -1430,10 +1508,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.2')
+      navigator.serviceWorker.register('./sw.js?v=3.3')
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.2 aktiv.');
+          console.log('Service Worker v3.3 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });

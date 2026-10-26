@@ -16,7 +16,14 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.2 (Oktober 2026)
+## 🆕 Version 3.3 (Oktober 2026)
+- **Typ „Anschaffung“** (vierter Umschalter, orange) für gemeinsame Anschaffungen wie Möbel, TV oder Haushaltsgeräte. Einmal mit dem Gesamtbetrag erfassen.
+- Zählt **nicht** im monatlichen Familien-Ausgleich und nicht in der Familien-Pivot, wird aber **je 50 %** den Monatskosten von Sascha und Sonja zugerechnet (Übersicht → „Persönliche Kosten“ und „Monatsabschluss“ → `anschaffungen`).
+- Übersicht: neue Karte „Gemeinsame Anschaffungen“ (Monat, je Person, letzte 12 Monate).
+- Sheet: Dropdown für Spalte F „Typ“ und neuer Reiter **„Gemeinsame Anschaffungen“** (automatische Liste und Monatssummen per `QUERY`).
+- Abwärtskompatibel: Der Umschalter erscheint erst mit Backend v3.3.
+
+## Version 3.2 (Oktober 2026)
 - **Feste ID je Eintrag (Spalte H „ID“):** Bearbeiten und Löschen finden den Eintrag über die ID, nicht mehr über die Zeilennummer. Sortieren, Filtern oder Zeilen-Einfügen im Sheet ist damit unkritisch.
 - Bestehende Einträge sind fortlaufend nummeriert (1 = ältester Eintrag). Neue Einträge bekommen automatisch die nächste Nummer; von Hand im Sheet ergänzte Zeilen (ohne ID) erhalten beim nächsten Laden der App eine ID, doppelte IDs werden korrigiert.
 - **Bitte Spalte H nicht von Hand ändern.** Abwärtskompatibel: Mit Backend v3.1 arbeitet die App weiter über die Zeilennummer.

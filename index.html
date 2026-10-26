@@ -784,6 +784,21 @@
       color: #e2e8f0; white-space: pre-wrap; word-break: break-word; margin: 0;
     }
     .copy-btn { align-self: flex-start; }
+
+    /* ===== v3.3: Typ Anschaffung (gemeinsam) ===== */
+    body.mode-shared {
+      --primary: #f59e0b;
+      --primary-hover: #d97706;
+      --primary-glow: rgba(245, 158, 11, 0.28);
+    }
+    body.mode-shared .chip-btn.selected { background: rgba(245, 158, 11, 0.15); color: #fcd34d; }
+    #btn-type-shared, #filter-type-shared { display: none; }
+    body.shared-enabled #btn-type-shared, body.shared-enabled #filter-type-shared { display: flex; justify-content: center; }
+    body.shared-enabled .type-toggle { grid-template-columns: 1fr 1fr; }
+    body.shared-enabled .type-toggle .payer-btn { padding: 10px 6px; }
+    .type-toggle .payer-btn.active[data-type="Anschaffung"] .avatar { background: #f59e0b; }
+    .entry-item.shared { border-left: 3px solid #f59e0b; }
+    body.shared-enabled #filter-type button { font-size: 0.74rem; padding: 7px 2px; }
     .target-ok { color: #34d399; }
     .target-bad { color: #f87171; }
   </style>
@@ -847,6 +862,10 @@
           <button type="button" class="payer-btn" id="btn-type-trip" data-type="Reise">
             <span class="avatar">✈️</span>
             <span>Reise</span>
+          </button>
+          <button type="button" class="payer-btn" id="btn-type-shared" data-type="Anschaffung">
+            <span class="avatar">🛋️</span>
+            <span>Anschaffung</span>
           </button>
         </section>
         <div class="type-hint" id="type-hint">Geteilte Familienkosten – zählt für den Ausgleich</div>
@@ -942,6 +961,7 @@
             <button type="button" data-val="Familie">Familie</button>
             <button type="button" data-val="Persönlich">Persönlich</button>
             <button type="button" data-val="Reise" id="filter-type-trip">Reise</button>
+            <button type="button" data-val="Anschaffung" id="filter-type-shared">Anschaff.</button>
           </div>
           <div class="seg" id="filter-payer">
             <button type="button" data-val="all" class="active">Beide</button>
@@ -978,6 +998,11 @@
       <section class="card" id="close-card">
         <div class="card-title"><span>🗓️ Monatsabschluss <span id="close-person"></span></span></div>
         <div id="summary-close"></div>
+      </section>
+
+      <section class="card" id="shared-card" style="display:none;">
+        <div class="card-title"><span>🛋️ Gemeinsame Anschaffungen</span></div>
+        <div id="summary-shared" style="display:flex; flex-direction:column; gap:10px;"></div>
       </section>
 
       <section class="card" id="trips-card" style="display:none;">
@@ -1043,6 +1068,7 @@
             <option>Familie</option>
             <option>Persönlich</option>
             <option id="edit-type-trip">Reise</option>
+            <option id="edit-type-shared">Anschaffung</option>
           </select>
         </div>
       </div>
@@ -1098,7 +1124,7 @@
       <button type="button" class="btn-secondary" id="test-connection-btn">Verbindung testen</button>
       <button type="button" class="btn-secondary" id="share-link-btn" style="display: none; border-color: #10b981; color: #34d399;">🔗 Setup-Link für Partnerin kopieren</button>
       <button type="button" class="btn-secondary" id="force-reload-btn" style="color: var(--text-subtle); font-size: 0.75rem; padding: 6px; border: none; background: transparent;">🔄 App-Cache leeren & aktualisieren</button>
-      <div class="muted-note" id="version-note">App-Version 3.2</div>
+      <div class="muted-note" id="version-note">App-Version 3.3</div>
     </div>
     <div class="dialog-footer">
       <button type="button" class="submit-btn" id="save-settings-btn" style="margin-top: 0;">Speichern</button>
@@ -1107,7 +1133,7 @@
 
   <!-- Scripts -->
   <script src="config.js"></script>
-  <script src="app.js?v=3.2"></script>
+  <script src="app.js?v=3.3"></script>
 
 </body>
 </html>
