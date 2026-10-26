@@ -1,5 +1,7 @@
 /**
- * Kostentracker PWA - Client Logic (v3.3)
+ * Kostentracker PWA - Client Logic (v3.4)
+ *
+ * Neu in v3.4: Euro-Icon; Setup-Link (URL + Token) per Zwischenablage einfügen
  *
  * Neu in v3.3:
  *  - Typ "Anschaffung" für gemeinsame Anschaffungen (Möbel, TV, Haushaltsgeräte):
@@ -1458,12 +1460,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Setup-Link (…?api=…&token=…) aus „Setup-Link kopieren“ erkennen
+  function parseSetupLink(text) {
+    try {
+      const t = String(text || '').trim();
+      if (!/[?&]api=/.test(t)) return null;
+      const u = new URL(t);
+      const api = u.searchParams.get('api');
+      if (!api || !api.startsWith('https://script.google.com/')) return null;
+      return { api: api.trim(), token: (u.searchParams.get('token') || '').trim() };
+    } catch (e) { return null; }
+  }
+
+  // Einstellungsfeld: Setup-Link auch direkt ins URL-Feld einfügbar
+  cfgApiUrl.addEventListener('input', () => {
+    const setup = parseSetupLink(cfgApiUrl.value);
+    if (setup) {
+      cfgApiUrl.value = setup.api;
+      if (setup.token) cfgSecretToken.value = setup.token;
+      showToast('Setup-Link erkannt – URL und Token übernommen.', '🔗', 'success', 4000);
+    }
+  });
+
   if (pasteClipboardBtn) {
     pasteClipboardBtn.addEventListener('click', async () => {
       try {
         if (navigator.clipboard && navigator.clipboard.readText) {
           const text = await navigator.clipboard.readText();
-          if (text) {
+          const setup = parseSetupLink(text);
+          if (setup) {
+            cfgApiUrl.value = setup.api;
+            if (setup.token) cfgSecretToken.value = setup.token;
+            showToast(setup.token ? 'URL und Token eingefügt – jetzt Speichern.' : 'URL eingefügt!', '📋', 'success', 4000);
+          } else if (text) {
             cfgApiUrl.value = text.trim();
             showToast('URL eingefügt!', '📋');
           } else {
@@ -1512,10 +1541,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.3')
+      navigator.serviceWorker.register('./sw.js?v=3.4')
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.3 aktiv.');
+          console.log('Service Worker v3.4 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
