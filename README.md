@@ -16,7 +16,19 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.0 (Oktober 2026)
+## 🆕 Version 3.1 (Oktober 2026)
+- **Typ „Reise“** (dritter Umschalter, blau) mit Reiseauswahl im Format `JJJJ-MM Name` (z. B. `2026-10 Teneriffa`), gespeichert in **Spalte G „Reise“**. Reisekosten zählen **nicht** im monatlichen Familien-Ausgleich und nicht in der Pivot (Filter `Typ ∈ {leer, Familie}`).
+- **Übersicht → Reisen:** Summe pro Reise, wer was bezahlt hat, Ausgleich 50/50 und Button „Für Reisenotiz kopieren“ (`ist_gesamt`, `anteil_sonja` für die Obsidian-Reisenotiz).
+- **Übersicht → Monatsabschluss:** Anschaffungen ≥ 100 € (persönlich, ohne Lebensmittel/Kleidung/Gastro), Kleidung und Lebensmittel des gewählten Monats – als Obsidian-Properties zum Kopieren. Kategorien werden automatisch aus Position/Kommentar erkannt (`CATEGORY_RULES` in `app.js`).
+- **Abwärtskompatibel:** Der Reise-Umschalter erscheint erst, wenn das Backend v3.1 meldet (`types` enthält „Reise“). Mit Backend v3.0 läuft alles wie bisher.
+- Backend liefert jetzt alle Einträge der letzten 3 Monate (mind. 150) für den Monatsabschluss.
+
+### Update von v3.0 auf v3.1
+1. `Code.gs` v3.1 (lokal, nicht im Git) in den Apps-Script-Editor kopieren und speichern.
+2. **Bereitstellen ➔ Bereitstellungen verwalten ➔ Stift ➔ Version: „Neue Version“ ➔ Bereitstellen.**
+3. App schließen und neu öffnen. In ⚙️ → „Verbindung testen“ sollte „Backend v3.1“ melden; dann erscheint „✈️ Reise“.
+
+## Version 3.0 (Oktober 2026)
 - **Typ-Umschalter Familie / Persönlich:** Schreibt in Spalte F „Typ“. Persönliche Kosten erscheinen in Lila und zählen **nicht** in der Pivot „Familie Übersicht var. Kosten“ (Filter: `Typ <> Persönlich`, leere Zellen = Familie).
 - **Verlauf aus dem Sheet:** Letzte 150 Einträge, filterbar nach Typ, Person und Suchbegriff. Antippen öffnet **Bearbeiten / Löschen** (Zeile wird vorher geprüft, damit nie die falsche Zeile geändert wird).
 - **Monatsübersicht:** Familienkosten je Person, Gesamt, **Ausgleich bei 50/50**, persönliche Kosten, Ø der letzten 12 Monate und 6-Monats-Trend.

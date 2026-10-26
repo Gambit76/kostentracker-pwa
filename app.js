@@ -1,5 +1,10 @@
 /**
- * Kostentracker PWA - Client Logic (v3.0)
+ * Kostentracker PWA - Client Logic (v3.1)
+ *
+ * Neu in v3.1:
+ *  - Typ "Reise" mit Reisename (Spalte G) – erscheint erst, wenn das Backend v3.1 läuft
+ *  - Reisen-Saldo pro Reise inkl. 50/50-Ausgleich und Werten für die Obsidian-Reisenotiz
+ *  - Monatsabschluss: Anschaffungen ≥ 100 €, Kleidung, Lebensmittel als Obsidian-Properties zum Kopieren
  *
  * Neu in v3:
  *  - Typ-Umschalter Familie / Persönlich (Spalte F im Sheet)
@@ -18,6 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnSonja = $('btn-sonja');
   const btnTypeFamily = $('btn-type-family');
   const btnTypePersonal = $('btn-type-personal');
+  const btnTypeTrip = $('btn-type-trip');
+  const tripSelect = $('trip-select');
+  const tripNewInput = $('trip-new-input');
   const typeHint = $('type-hint');
   const expenseForm = $('expense-form');
   const amountInput = $('amount-input');
@@ -60,6 +68,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const summaryTrend = $('summary-trend');
   const summaryNote = $('summary-note');
   const trendPerson = $('trend-person');
+  const summaryClose = $('summary-close');
+  const closePerson = $('close-person');
+  const tripsCard = $('trips-card');
+  const summaryTrips = $('summary-trips');
 
   // Edit dialog
   const editDialog = $('edit-dialog');
@@ -69,6 +81,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const editPayer = $('edit-payer');
   const editType = $('edit-type');
   const editComment = $('edit-comment');
+  const editTripGroup = $('edit-trip-group');
+  const editTrip = $('edit-trip');
+  const tripSuggestionList = $('trip-suggestions');
+  const editTypeTripOption = $('edit-type-trip');
   const editRowNote = $('edit-row-note');
   const editSaveBtn = $('edit-save-btn');
   const editDeleteBtn = $('edit-delete-btn');
@@ -125,14 +141,42 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Constants ----------
   const TYPE_FAMILY = 'Familie';
   const TYPE_PERSONAL = 'Persönlich';
+  const TYPE_TRIP = 'Reise';
+  const NEW_TRIP = '__new__';
   const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   const MONTH_SHORT = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
   const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
   const DEFAULT_CHIPS = {
     [TYPE_FAMILY]: ['Edeka', 'Rewe', 'Bäckerei', 'Edeka + Bäckerei', 'Kraus', 'Kleidung Kinder', 'Flaschenpost', 'Happycoffee', 'Baumarkt', 'Apotheke'],
-    [TYPE_PERSONAL]: ['Mittagessen', 'Kaffee', 'Tanken', 'Kleidung', 'Sport', 'Bücher', 'Geschenk', 'Parken', 'Friseur', 'Freizeit']
+    [TYPE_PERSONAL]: ['Mittagessen', 'Kaffee', 'Tanken', 'Kleidung', 'Sport', 'Bücher', 'Geschenk', 'Parken', 'Friseur', 'Freizeit'],
+    [TYPE_TRIP]: ['Flug', 'Unterkunft', 'Mietwagen', 'Restaurant', 'Supermarkt', 'Eintritt', 'Ausflug', 'Taxi', 'Parken', 'Souvenirs']
   };
+
+  // ---------- Kategorien (für den Monatsabschluss) ----------
+  // Reihenfolge zählt: erster Treffer gewinnt.
+  const CATEGORY_RULES = [
+    ['Kleidung', /kleidung|schuh|sohle|zalando|p&c|peek|h&m|zara|uniqlo|jeans|hose|mantel|jacke|pullover|hemd|shirt|pyjama|socken|gorewear|schiesser|shoppen|shopping/i],
+    ['Lebensmittel', /edeka|rewe|aldi|lidl|kaufland|netto|penny|supermarkt|bäcker|brot|flaschenpost|kraus|hähnchen|metzger|wochenmarkt|einkauf|getränke|obst|gemüse/i],
+    ['Gastro', /restaurant|mittagessen|abendessen|essen|café|cafe|eiscafé|\beis\b|pizza|mcdonald|imbiss|strandbude|pfannkuchen|kneipe|döner|sushi|burger/i],
+    ['Drogerie & Gesundheit', /\bdm\b|dm kinder|rossmann|drogerie|apotheke|arzt|brille/i]
+  ];
+
+  function categoryOf(entry) {
+    const text = `${entry.position || ''} ${entry.comment || ''}`;
+    for (const [cat, re] of CATEGORY_RULES) if (re.test(text)) return cat;
+    return 'Sonstiges';
+  }
+
+  const ANSCHAFFUNG_MIN = 100;
+  function isAnschaffung(entry) {
+    const c = categoryOf(entry);
+    return entry.amount >= ANSCHAFFUNG_MIN && c !== 'Lebensmittel' && c !== 'Kleidung' && c !== 'Gastro';
+  }
+
+  function normalizeTrip(val) {
+    return String(val == null ? '' : val).replace(/\s+/g, ' ').trim().slice(0, 80);
+  }
 
   const CHIP_ICONS = [
     [/edeka|rewe|aldi|lidl|supermarkt|einkauf|kaufland|netto/i, '🛒'],
@@ -149,9 +193,9 @@ document.addEventListener('DOMContentLoaded', () => {
     [/sport|fitness/i, '🏋️'],
     [/buch|bücher/i, '📚'],
     [/geschenk|geburtstag/i, '🎁'],
-    [/park/i, '🅿️'],
+    [/parken|parkhaus|parkplatz|^park\b/i, '🅿️'],
     [/friseur|frisör/i, '💇'],
-    [/kirmes|freizeit|kino|zoo/i, '🎡'],
+    [/kirmes|freizeit|kino|zoo|eintritt|freizeitpark|siam/i, '🎡'],
     [/kraus|gemüse|obst|markt/i, '🥕'],
     [/flug|reise|hotel|urlaub/i, '✈️'],
     [/taxi|bahn|ticket/i, '🚕']
@@ -243,7 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---------- State ----------
   let currentPayer = store.get('kostentracker_payer', 'Sascha');
-  let currentType = store.get('kostentracker_type', TYPE_FAMILY) === TYPE_PERSONAL ? TYPE_PERSONAL : TYPE_FAMILY;
+  let currentType = [TYPE_PERSONAL, TYPE_TRIP].includes(store.get('kostentracker_type', TYPE_FAMILY))
+    ? store.get('kostentracker_type') : TYPE_FAMILY;
+  let localTrips = store.getJSON('kostentracker_trips_local', []);
   let offlineQueue = store.getJSON('kostentracker_queue', []);
   let sheetData = store.getJSON('kostentracker_data', null);
   let isSyncing = false;
@@ -320,17 +366,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.querySelector('#view-summary.active')) renderSummary();
   }
 
+  const TYPE_HINTS = {
+    [TYPE_FAMILY]: 'Geteilte Familienkosten – zählt für den Ausgleich',
+    [TYPE_PERSONAL]: 'Nur für dich – zählt NICHT für den Familien-Ausgleich',
+    [TYPE_TRIP]: 'Reisekosten – werden pro Reise abgerechnet, nicht im Monatsausgleich'
+  };
+  const SUBMIT_LABELS = {
+    [TYPE_FAMILY]: 'Familienkosten speichern',
+    [TYPE_PERSONAL]: 'Persönlich speichern',
+    [TYPE_TRIP]: 'Reisekosten speichern'
+  };
+
+  // Läuft im Backend schon v3.1 (kennt Typ "Reise")?
+  function tripsEnabled() {
+    return !!(sheetData && Array.isArray(sheetData.types) && sheetData.types.includes(TYPE_TRIP));
+  }
+
   function setType(type) {
-    currentType = type === TYPE_PERSONAL ? TYPE_PERSONAL : TYPE_FAMILY;
-    store.set('kostentracker_type', currentType);
-    const personal = currentType === TYPE_PERSONAL;
-    document.body.classList.toggle('mode-personal', personal);
-    btnTypeFamily.classList.toggle('active', !personal);
-    btnTypePersonal.classList.toggle('active', personal);
-    typeHint.textContent = personal
-      ? 'Nur für dich – zählt NICHT für den Familien-Ausgleich'
-      : 'Geteilte Familienkosten – zählt für den Ausgleich';
-    btnLabel.textContent = personal ? 'Persönlich speichern' : 'Familienkosten speichern';
+    let persist = true;
+    if (type === TYPE_TRIP && !tripsEnabled()) { type = TYPE_FAMILY; persist = false; }
+    currentType = [TYPE_PERSONAL, TYPE_TRIP].includes(type) ? type : TYPE_FAMILY;
+    if (persist) store.set('kostentracker_type', currentType);
+    document.body.classList.toggle('mode-personal', currentType === TYPE_PERSONAL);
+    document.body.classList.toggle('mode-trip', currentType === TYPE_TRIP);
+    btnTypeFamily.classList.toggle('active', currentType === TYPE_FAMILY);
+    btnTypePersonal.classList.toggle('active', currentType === TYPE_PERSONAL);
+    btnTypeTrip.classList.toggle('active', currentType === TYPE_TRIP);
+    typeHint.textContent = TYPE_HINTS[currentType];
+    btnLabel.textContent = SUBMIT_LABELS[currentType];
+    if (currentType === TYPE_TRIP) renderTripSelect();
     renderChips();
     renderSuggestions();
   }
@@ -339,6 +403,66 @@ document.addEventListener('DOMContentLoaded', () => {
   btnSonja.addEventListener('click', () => setPayer('Sonja'));
   btnTypeFamily.addEventListener('click', () => setType(TYPE_FAMILY));
   btnTypePersonal.addEventListener('click', () => setType(TYPE_PERSONAL));
+  btnTypeTrip.addEventListener('click', () => setType(TYPE_TRIP));
+
+  // ---------- Reisen ----------
+  function knownTrips() {
+    const fromSheet = ((sheetData && sheetData.trips) || []).map(t => t.name).filter(n => n && n !== 'Ohne Namen');
+    return [...new Set([...localTrips, ...fromSheet])]
+      .sort((a, b) => (a < b ? 1 : -1)); // "JJJJ-MM Name" → neueste zuerst
+  }
+
+  function renderTripSelect() {
+    const trips = knownTrips();
+    const remembered = store.get('kostentracker_trip', '');
+    const prev = tripSelect.value;
+    tripSelect.innerHTML = trips.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('') +
+      `<option value="${NEW_TRIP}">＋ Neue Reise…</option>`;
+    const pick = [prev, remembered].find(v => v && (v === NEW_TRIP || trips.includes(v))) || trips[0] || NEW_TRIP;
+    tripSelect.value = pick;
+    updateTripNewInput();
+    if (tripSuggestionList) tripSuggestionList.innerHTML = trips.map(t => `<option value="${escapeHtml(t)}"></option>`).join('');
+  }
+
+  function updateTripNewInput() {
+    const isNew = tripSelect.value === NEW_TRIP;
+    tripNewInput.style.display = isNew ? 'block' : 'none';
+    if (isNew && !tripNewInput.value) tripNewInput.value = currentMonthKey() + ' ';
+  }
+
+  tripSelect.addEventListener('change', () => {
+    updateTripNewInput();
+    if (tripSelect.value !== NEW_TRIP) store.set('kostentracker_trip', tripSelect.value);
+    else tripNewInput.focus();
+  });
+
+  function currentTrip() {
+    if (currentType !== TYPE_TRIP) return '';
+    return tripSelect.value === NEW_TRIP ? normalizeTrip(tripNewInput.value) : tripSelect.value;
+  }
+
+  function rememberTrip(name) {
+    if (!name) return;
+    if (!localTrips.includes(name)) {
+      localTrips = [name, ...localTrips].slice(0, 20);
+      store.setJSON('kostentracker_trips_local', localTrips);
+    }
+    store.set('kostentracker_trip', name);
+    tripNewInput.value = '';
+    renderTripSelect();
+    tripSelect.value = name;
+    updateTripNewInput();
+  }
+
+  function applyCapabilities() {
+    const on = tripsEnabled();
+    document.body.classList.toggle('trips-enabled', on);
+    if (on && !editTypeTripOption.parentNode) editType.appendChild(editTypeTripOption);
+    if (!on && editTypeTripOption.parentNode) editTypeTripOption.remove();
+    if (!on && currentType === TYPE_TRIP) setType(TYPE_FAMILY);
+    if (on && store.get('kostentracker_type') === TYPE_TRIP && currentType !== TYPE_TRIP) setType(TYPE_TRIP);
+    if (on) renderTripSelect();
+  }
 
   // ---------- Date ----------
   function setToday() { dateInput.value = formatDateForInput(new Date()); }
@@ -399,7 +523,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSuggestions() {
     const s = (sheetData && sheetData.suggestions) || {};
     const primary = (s[currentType] || []).map(x => x.position);
-    const other = (s[currentType === TYPE_FAMILY ? TYPE_PERSONAL : TYPE_FAMILY] || []).map(x => x.position);
+    const other = [TYPE_FAMILY, TYPE_PERSONAL, TYPE_TRIP]
+      .filter(t => t !== currentType)
+      .flatMap(t => (s[t] || []).map(x => x.position));
     const all = [...new Set([...primary, ...other])];
     suggestionList.innerHTML = all.map(p => `<option value="${escapeHtml(p)}"></option>`).join('');
   }
@@ -488,12 +614,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const key = entry.iso.slice(0, 7);
     let m = (sheetData.months || []).find(x => x.month === key);
     if (!m) {
-      m = { month: key, family: {}, personal: {}, count: 0 };
+      m = { month: key, family: {}, personal: {}, trip: {}, count: 0 };
       sheetData.months = [...(sheetData.months || []), m].sort((a, b) => (a.month < b.month ? 1 : -1));
     }
-    const bucket = entry.type === TYPE_PERSONAL ? m.personal : m.family;
+    if (!m.trip) m.trip = {};
+    const bucket = entry.type === TYPE_PERSONAL ? m.personal : entry.type === TYPE_TRIP ? m.trip : m.family;
     bucket[entry.paidBy] = Math.round(((bucket[entry.paidBy] || 0) + sign * entry.amount) * 100) / 100;
     m.count += sign;
+    if (entry.type === TYPE_TRIP) adjustTrip(entry, sign);
+  }
+
+  function adjustTrip(entry, sign) {
+    const name = entry.trip || 'Ohne Namen';
+    sheetData.trips = sheetData.trips || [];
+    let t = sheetData.trips.find(x => x.name === name);
+    if (!t) {
+      t = { name, total: 0, byPayer: {}, count: 0, from: entry.iso, to: entry.iso };
+      sheetData.trips = [t, ...sheetData.trips];
+    }
+    const r2 = (n) => Math.round(n * 100) / 100;
+    t.total = r2(t.total + sign * entry.amount);
+    t.byPayer[entry.paidBy] = r2((t.byPayer[entry.paidBy] || 0) + sign * entry.amount);
+    t.count += sign;
+    if (entry.iso && sign > 0) {
+      if (!t.from || entry.iso < t.from) t.from = entry.iso;
+      if (!t.to || entry.iso > t.to) t.to = entry.iso;
+    }
+    if (t.count <= 0) sheetData.trips = sheetData.trips.filter(x => x !== t);
   }
 
   function persistData() {
@@ -518,6 +665,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    const trip = currentTrip();
+    if (currentType === TYPE_TRIP && !trip) {
+      showToast('Bitte eine Reise wählen oder benennen.', '✈️', 'error');
+      (tripSelect.value === NEW_TRIP ? tripNewInput : tripSelect).focus();
+      return;
+    }
+
     const config = getApiConfig();
     if (!config.apiUrl) {
       openSettings();
@@ -535,9 +689,11 @@ document.addEventListener('DOMContentLoaded', () => {
       type: currentType,
       comment: commentInput.value.trim()
     };
+    if (currentType === TYPE_TRIP) payload.trip = trip;
 
     if (!navigator.onLine) {
       queueEntry(payload);
+      if (trip) rememberTrip(trip);
       resetFormAfterSubmit();
       showToast('Offline gespeichert (wird synchronisiert).', '💾', 'warning');
       return;
@@ -548,8 +704,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await apiPost(payload);
       if (result && result.success) {
         if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
-        const label = currentType === TYPE_PERSONAL ? 'Persönlich gespeichert' : 'Im Sheet gespeichert';
+        const label = currentType === TYPE_PERSONAL ? 'Persönlich gespeichert'
+          : currentType === TYPE_TRIP ? `Reise ${trip}` : 'Im Sheet gespeichert';
         showToast(`${label}: ${position} ${fmtEur(numericAmount)}`, '✅', 'success');
+        if (trip) rememberTrip(trip);
         if (result.data && !result.duplicate) {
           applyLocalAdd(result.data);
           persistData();
@@ -565,6 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (err) {
       console.warn('Network error, saving to offline queue:', err);
       queueEntry(payload);
+      if (trip) rememberTrip(trip);
       resetFormAfterSubmit();
       showToast('Verbindung fehlgeschlagen – offline gespeichert.', '💾', 'warning');
     } finally {
@@ -625,9 +784,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function setLoadingState(loading) {
     submitBtn.disabled = loading;
     btnSpinner.style.display = loading ? 'inline-block' : 'none';
-    btnLabel.textContent = loading
-      ? 'Wird gespeichert...'
-      : (currentType === TYPE_PERSONAL ? 'Persönlich speichern' : 'Familienkosten speichern');
+    btnLabel.textContent = loading ? 'Wird gespeichert...' : SUBMIT_LABELS[currentType];
   }
 
   function resetFormAfterSubmit() {
@@ -675,7 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (historyFilter.type !== 'all' && entry.type !== historyFilter.type) return false;
     if (historyFilter.payer !== 'all' && entry.paidBy !== historyFilter.payer) return false;
     if (historyFilter.q) {
-      const hay = `${entry.position} ${entry.comment || ''}`.toLowerCase();
+      const hay = `${entry.position} ${entry.comment || ''} ${entry.trip || ''}`.toLowerCase();
       if (!hay.includes(historyFilter.q)) return false;
     }
     return true;
@@ -683,12 +840,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function entryHtml(entry, pending) {
     const personal = entry.type === TYPE_PERSONAL;
+    const isTrip = entry.type === TYPE_TRIP;
     const meta = [entry.paidBy];
     if (personal) meta.push('Persönlich');
+    if (isTrip) meta.push('✈️ ' + (entry.trip || 'Reise'));
     if (entry.comment) meta.push(entry.comment);
     if (pending) meta.push('⏳ wartet auf Sync');
+    const cls = personal ? 'personal' : isTrip ? 'trip' : 'family';
     return `
-      <button type="button" class="entry-item ${personal ? 'personal' : 'family'} ${pending ? 'pending' : ''}" ${pending ? 'disabled' : `data-row="${entry.row}"`}>
+      <button type="button" class="entry-item ${cls} ${pending ? 'pending' : ''}" ${pending ? 'disabled' : `data-row="${entry.row}"`}>
         <span class="entry-info">
           <span class="entry-pos">${escapeHtml(entry.position)}</span>
           <span class="entry-meta">${escapeHtml(meta.join(' · '))}</span>
@@ -700,7 +860,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderHistory() {
     const pending = offlineQueue.map(q => ({
       position: q.position, amount: q.amount, paidBy: q.paidBy, type: q.type || TYPE_FAMILY,
-      comment: q.comment, iso: germanToIso(q.date), pending: true
+      trip: q.trip || '', comment: q.comment, iso: germanToIso(q.date), pending: true
     })).filter(matchesFilter);
 
     if (!sheetData) {
@@ -760,12 +920,22 @@ document.addEventListener('DOMContentLoaded', () => {
     editPosition.value = entry.position;
     editDate.value = entry.iso || '';
     editPayer.value = entry.paidBy === 'Sonja' ? 'Sonja' : 'Sascha';
-    editType.value = entry.type === TYPE_PERSONAL ? TYPE_PERSONAL : TYPE_FAMILY;
+    editType.value = [TYPE_PERSONAL, TYPE_TRIP].includes(entry.type) && (entry.type !== TYPE_TRIP || tripsEnabled())
+      ? entry.type : TYPE_FAMILY;
+    editTrip.value = entry.trip || '';
+    updateEditTripGroup();
     editComment.value = entry.comment || '';
     editRowNote.textContent = `Zeile ${entry.row} im Sheet`;
     resetDeleteBtn();
     editDialog.showModal();
   }
+
+  function updateEditTripGroup() {
+    const isTrip = editType.value === TYPE_TRIP;
+    editTripGroup.style.display = isTrip ? 'flex' : 'none';
+    if (isTrip && !editTrip.value) editTrip.value = store.get('kostentracker_trip', '') || '';
+  }
+  editType.addEventListener('change', updateEditTripGroup);
 
   closeEditBtn.addEventListener('click', () => editDialog.close());
 
@@ -786,23 +956,30 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Bitte Wo/Wofür angeben.', '⚠️', 'error');
       return;
     }
+    const editTripName = editType.value === TYPE_TRIP ? normalizeTrip(editTrip.value) : '';
+    if (editType.value === TYPE_TRIP && !editTripName) {
+      showToast('Bitte einen Reisenamen angeben.', '✈️', 'error');
+      return;
+    }
     if (!navigator.onLine) {
       showToast('Bearbeiten geht nur online.', '📡', 'warning');
       return;
     }
     setEditBusy(true);
     try {
+      const entryBody = {
+        position, amount,
+        date: isoToGerman(editDate.value) || editingEntry.date,
+        paidBy: editPayer.value,
+        type: editType.value,
+        comment: editComment.value.trim()
+      };
+      if (tripsEnabled()) entryBody.trip = editTripName;
       const result = await apiPost({
         action: 'update',
         row: editingEntry.row,
         expected: { position: editingEntry.position, amount: editingEntry.amount },
-        entry: {
-          position, amount,
-          date: isoToGerman(editDate.value) || editingEntry.date,
-          paidBy: editPayer.value,
-          type: editType.value,
-          comment: editComment.value.trim()
-        }
+        entry: entryBody
       });
       if (result && result.success) {
         adjustMonth(editingEntry, -1);
@@ -888,7 +1065,104 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function getMonth(key) {
     const m = sheetData && (sheetData.months || []).find(x => x.month === key);
-    return m || { month: key, family: {}, personal: {}, count: 0 };
+    return m || { month: key, family: {}, personal: {}, trip: {}, count: 0 };
+  }
+
+  // ---------- Monatsabschluss (Werte für die Obsidian-Monatsnotiz) ----------
+  const TARGETS = { anschaffungen: 250, anschaffungenMax: 400, lebensmittel: 850 };
+
+  async function copyText(text, btn) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('Kopiert – in Obsidian bei den Properties einfügen.', '📋');
+    } catch (e) {
+      prompt('Zum Kopieren markieren:', text);
+    }
+    if (btn) { btn.textContent = '✓ Kopiert'; setTimeout(() => { btn.textContent = btn.dataset.label; }, 2000); }
+  }
+
+  function targetSpan(val, target, max) {
+    if (!target) return '';
+    const cls = val <= target ? 'target-ok' : (max && val <= max ? '' : 'target-bad');
+    return ` <span class="${cls}" style="font-size:0.75rem;">(Ziel ≤ ${fmtEur(target)}${max ? `, max. ${fmtEur(max)}` : ''})</span>`;
+  }
+
+  function renderClose() {
+    const person = currentPayer;
+    closePerson.textContent = `· ${person}`;
+    const key = summaryMonth;
+    const entries = (sheetData.entries || []).filter(e => e.iso && e.iso.slice(0, 7) === key && e.paidBy === person);
+    const recentFrom = sheetData.recentFrom || (() => {
+      const isos = (sheetData.entries || []).map(e => e.iso).filter(Boolean).sort();
+      return isos[0] || '';
+    })();
+    const complete = recentFrom && recentFrom <= `${key}-01`;
+
+    const personal = entries.filter(e => e.type === TYPE_PERSONAL);
+    const anschaffungen = personal.filter(isAnschaffung);
+    const kleidung = personal.filter(e => categoryOf(e) === 'Kleidung');
+    const lebensmittel = entries.filter(e => e.type !== TYPE_TRIP && categoryOf(e) === 'Lebensmittel');
+    const familyBig = entries.filter(e => e.type === TYPE_FAMILY && isAnschaffung(e));
+    const sum = (list) => Math.round(list.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100) / 100;
+
+    const sA = sum(anschaffungen), sK = sum(kleidung), sL = sum(lebensmittel);
+    const yaml = `anschaffungen: ${Math.round(sA)}\nkleidung: ${Math.round(sK)}\nlebensmittel: ${Math.round(sL)}`;
+    const listHtml = (list) => list.length
+      ? `<div class="close-list">${list.map(e => `<div><span>${escapeHtml(e.date)} · ${escapeHtml(e.position)}</span><span>${fmtEur(e.amount)}</span></div>`).join('')}</div>`
+      : '';
+
+    summaryClose.innerHTML = `
+      ${complete ? '' : '<div class="muted-note" style="text-align:left; color:#fbbf24;">⚠️ Für diesen Monat liegen nicht alle Einzelbuchungen in der App vor. Werte sind unvollständig.</div>'}
+      <div class="sum-row"><span>Anschaffungen ≥ 100 €${targetSpan(sA, TARGETS.anschaffungen, TARGETS.anschaffungenMax)}</span><span class="val">${fmtEur(sA)}</span></div>
+      ${listHtml(anschaffungen)}
+      <div class="sum-row"><span>Kleidung</span><span class="val">${fmtEur(sK)}</span></div>
+      <div class="sum-row"><span>Lebensmittel (von dir bezahlt)${targetSpan(sL, TARGETS.lebensmittel)}</span><span class="val">${fmtEur(sL)}</span></div>
+      ${familyBig.length ? `<div class="muted-note" style="text-align:left;">Familien-Käufe ≥ 100 € von dir (nicht mitgezählt, ggf. selbst addieren):</div>${listHtml(familyBig)}` : ''}
+      <pre class="yaml-box" id="close-yaml">${escapeHtml(yaml)}</pre>
+      <button type="button" class="icon-btn copy-btn" id="close-copy-btn" data-label="📋 Für Obsidian kopieren">📋 Für Obsidian kopieren</button>
+      <div class="muted-note" style="text-align:left;">Topf, Bargeld und Kontostand kommen aus der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung und Gastro.</div>`;
+    $('close-copy-btn').addEventListener('click', (e) => copyText(yaml, e.currentTarget));
+  }
+
+  // ---------- Reisen-Saldo ----------
+  function formatRange(from, to) {
+    if (!from) return '';
+    const f = isoToGerman(from), t = isoToGerman(to || from);
+    return f === t ? f : `${f} – ${t}`;
+  }
+
+  function renderTrips() {
+    const trips = (sheetData.trips || []).filter(t => t.count > 0);
+    tripsCard.style.display = tripsEnabled() ? 'flex' : 'none';
+    if (!tripsEnabled()) return;
+    if (!trips.length) {
+      summaryTrips.innerHTML = '<div class="empty-state">Noch keine Reisekosten erfasst. Oben beim Erfassen „Reise“ wählen.</div>';
+      return;
+    }
+    summaryTrips.innerHTML = trips.slice(0, 4).map((t, i) => {
+      const sa = t.byPayer.Sascha || 0, so = t.byPayer.Sonja || 0;
+      const diff = sa - so;
+      let settle;
+      if (Math.abs(diff) < 0.01) settle = '⚖️ <strong>Ausgeglichen</strong>';
+      else {
+        const less = diff > 0 ? 'Sonja' : 'Sascha', more = diff > 0 ? 'Sascha' : 'Sonja';
+        settle = `⚖️ 50/50: <strong>${less} → ${more}: ${fmtEur(Math.abs(diff) / 2)}</strong>`;
+      }
+      return `
+        <div class="trip-item">
+          <div class="trip-name"><span>✈️ ${escapeHtml(t.name)}</span><span>${fmtEur(t.total)}</span></div>
+          <div class="trip-dates">${escapeHtml(formatRange(t.from, t.to))} · ${t.count} ${t.count === 1 ? 'Eintrag' : 'Einträge'}</div>
+          <div class="sum-row" style="font-size:0.85rem;"><span>Sascha bezahlt</span><span class="val">${fmtEur(sa)}</span></div>
+          <div class="sum-row" style="font-size:0.85rem;"><span>Sonja bezahlt</span><span class="val">${fmtEur(so)}</span></div>
+          <div class="settle trip-settle">${settle}</div>
+          <button type="button" class="icon-btn copy-btn trip-copy" data-idx="${i}" data-label="📋 Für Reisenotiz kopieren">📋 Für Reisenotiz kopieren</button>
+        </div>`;
+    }).join('') + '<div class="muted-note" style="text-align:left;">Kopiert <code>ist_gesamt</code> und <code>anteil_sonja</code> (was Sonja direkt bezahlt hat). Helga-Anteile bitte in Obsidian ergänzen.</div>';
+    summaryTrips.querySelectorAll('.trip-copy').forEach(btn => btn.addEventListener('click', (e) => {
+      const t = trips[Number(e.currentTarget.dataset.idx)];
+      const yaml = `ist_gesamt: ${Math.round(t.total)}\nanteil_sonja: ${Math.round(t.byPayer.Sonja || 0)}`;
+      copyText(yaml, e.currentTarget);
+    }));
   }
 
   monthPrev.addEventListener('click', () => { summaryMonth = shiftMonth(summaryMonth || currentMonthKey(), -1); renderSummary(); });
@@ -906,9 +1180,14 @@ document.addEventListener('DOMContentLoaded', () => {
       summaryFamily.innerHTML = '<div class="empty-state">Noch keine Daten geladen.</div>';
       summaryPersonal.innerHTML = '';
       summaryTrend.innerHTML = '';
+      summaryClose.innerHTML = '';
+      tripsCard.style.display = 'none';
       summaryNote.textContent = '';
       return;
     }
+
+    renderClose();
+    renderTrips();
 
     const m = getMonth(summaryMonth);
     const fSascha = m.family.Sascha || 0;
@@ -982,10 +1261,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const when = sheetData.generatedAt ? new Date(sheetData.generatedAt) : null;
     summaryNote.textContent = 'Nur variable Kosten aus „Familie Variable Kosten“' +
+      (tripsEnabled() ? ' · Reisen zählen nicht im Familien-Ausgleich' : '') +
       (when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '');
   }
 
   function renderAll() {
+    applyCapabilities();
     renderChips();
     renderSuggestions();
     renderHistory();
@@ -1065,6 +1346,8 @@ document.addEventListener('DOMContentLoaded', () => {
           showToast('Verbindung ok, aber Token falsch oder fehlt.', '🔒', 'warning', 5000);
         } else if (!data.version) {
           showToast('Verbindung ok – aber alte Code.gs-Version. Bitte neue Version bereitstellen.', '⚠️', 'warning', 6000);
+        } else if (!(data.types || []).includes(TYPE_TRIP)) {
+          showToast(`Verbindung & Token ok (Backend v${data.version}). Für „Reise“ Code.gs v3.1 bereitstellen.`, '✅', 'success', 5000);
         } else {
           showToast(`Verbindung & Token ok (Backend v${data.version}).`, '✅', 'success', 4000);
         }
@@ -1134,10 +1417,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.0')
+      navigator.serviceWorker.register('./sw.js?v=3.1')
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.0 aktiv.');
+          console.log('Service Worker v3.1 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
