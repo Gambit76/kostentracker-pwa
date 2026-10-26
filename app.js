@@ -174,7 +174,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const CATEGORY_RULES = [
     ['Kleidung', /kleidung|schuh|sohle|zalando|p&c|peek|h&m|zara|uniqlo|jeans|hose|mantel|jacke|pullover|hemd|shirt|pyjama|socken|gorewear|schiesser|shoppen|shopping/i],
     ['Lebensmittel', /edeka|rewe|aldi|lidl|kaufland|netto|penny|supermarkt|bäcker|brot|flaschenpost|kraus|hähnchen|metzger|wochenmarkt|einkauf|getränke|obst|gemüse/i],
-    ['Gastro', /restaurant|mittagessen|abendessen|essen|café|cafe|eiscafé|\beis\b|pizza|mcdonald|imbiss|strandbude|pfannkuchen|kneipe|döner|sushi|burger/i],
+    ['Bargeld', /bargeld|geldautomat|abhebung/i],
+    ['Spende', /spende|greenpeace|unicef/i],
+    ['Urlaub', /urlaub|\breise\b|hotel|\bflug\b/i],
+    ['Gastro & Ausgehen', /restaurant|mittagessen|abendessen|essen|café|cafe|eiscafé|\beis\b|pizza|mcdonald|imbiss|strandbude|pfannkuchen|kneipe|döner|sushi|burger|stammtisch|ausgehen|feiern|party|bar\b/i],
     ['Drogerie & Gesundheit', /\bdm\b|dm kinder|rossmann|drogerie|apotheke|arzt|brille/i]
   ];
 
@@ -185,9 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const ANSCHAFFUNG_MIN = 100;
+  const NO_ANSCHAFFUNG = ['Lebensmittel', 'Kleidung', 'Gastro & Ausgehen', 'Bargeld', 'Spende', 'Urlaub'];
   function isAnschaffung(entry) {
     const c = categoryOf(entry);
-    return entry.amount >= ANSCHAFFUNG_MIN && c !== 'Lebensmittel' && c !== 'Kleidung' && c !== 'Gastro';
+    return entry.amount >= ANSCHAFFUNG_MIN && !NO_ANSCHAFFUNG.includes(c);
   }
 
   function normalizeTrip(val) {
@@ -1181,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ${familyBig.length ? `<div class="muted-note" style="text-align:left;">Familien-Käufe ≥ 100 € von dir (nicht mitgezählt, ggf. selbst addieren):</div>${listHtml(familyBig)}` : ''}
       <pre class="yaml-box" id="close-yaml">${escapeHtml(yaml)}</pre>
       <button type="button" class="icon-btn copy-btn" id="close-copy-btn" data-label="📋 Für Obsidian kopieren">📋 Für Obsidian kopieren</button>
-      <div class="muted-note" style="text-align:left;">Topf, Bargeld und Kontostand kommen aus der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung und Gastro, plus deine Hälfte der gemeinsamen Anschaffungen.</div>`;
+      <div class="muted-note" style="text-align:left;">Topf, Bargeld und Kontostand kommen aus der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung, Gastro/Ausgehen, Bargeld, Spenden und Urlaub, plus deine Hälfte der gemeinsamen Anschaffungen.</div>`;
     $('close-copy-btn').addEventListener('click', (e) => copyText(yaml, e.currentTarget));
   }
 
