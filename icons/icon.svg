@@ -9,13 +9,13 @@
       <stop offset="1" stop-color="#059669"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="#111a2e"/>
   <circle cx="256" cy="256" r="182" fill="url(#coin)"/>
   <circle cx="256" cy="256" r="160" fill="none" stroke="#a7f3d0" stroke-opacity="0.45" stroke-width="6"/>
   <!-- Euro-Zeichen als Pfad (keine Schrift nötig) -->
-  <g fill="none" stroke="#ffffff" stroke-linecap="round" transform="translate(12 0)">
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" transform="translate(-15 0)">
     <path d="M 344 182 A 100 100 0 1 0 344 330" stroke-width="36"/>
-    <line x1="138" y1="228" x2="282" y2="228" stroke-width="28"/>
-    <line x1="138" y1="284" x2="270" y2="284" stroke-width="28"/>
+    <line x1="160" y1="228" x2="282" y2="228" stroke-width="28"/>
+    <line x1="160" y1="284" x2="270" y2="284" stroke-width="28"/>
   </g>
 </svg>
