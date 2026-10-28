@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const editComment = $('edit-comment');
   const editTripGroup = $('edit-trip-group');
   const editTrip = $('edit-trip');
-  const tripSuggestionList = $('trip-suggestions');
+  const editTripSelect = $('edit-trip-select');
   const editTypeTripOption = $('edit-type-trip');
   const editTypeSharedOption = $('edit-type-shared');
   const editRowNote = $('edit-row-note');
@@ -454,7 +454,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const pick = [prev, remembered].find(v => v && (v === NEW_TRIP || trips.includes(v))) || trips[0] || NEW_TRIP;
     tripSelect.value = pick;
     updateTripNewInput();
-    if (tripSuggestionList) tripSuggestionList.innerHTML = trips.map(t => `<option value="${escapeHtml(t)}"></option>`).join('');
   }
 
   function updateTripNewInput() {
@@ -981,7 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editPayer.value = entry.paidBy === 'Sonja' ? 'Sonja' : 'Sascha';
     editType.value = entry.type === TYPE_FAMILY || entry.type === TYPE_PERSONAL || typeEnabled(entry.type)
       ? entry.type : TYPE_FAMILY;
-    editTrip.value = entry.trip || '';
+    renderEditTripSelect(entry.trip || '');
     updateEditTripGroup();
     editComment.value = entry.comment || '';
     editRowNote.textContent = entry.id ? `ID ${entry.id} · Zeile ${entry.row} im Sheet` : `Zeile ${entry.row} im Sheet`;
@@ -992,9 +991,35 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateEditTripGroup() {
     const isTrip = editType.value === TYPE_TRIP;
     editTripGroup.style.display = isTrip ? 'flex' : 'none';
-    if (isTrip && !editTrip.value) editTrip.value = store.get('kostentracker_trip', '') || '';
+    if (isTrip && editTripSelect.options.length <= 1) renderEditTripSelect(store.get('kostentracker_trip', '') || '');
   }
   editType.addEventListener('change', updateEditTripGroup);
+
+  // Reise im Bearbeiten-Dialog: Auswahl der bekannten Reisen + „Neue Reise…“
+  function renderEditTripSelect(selected) {
+    const trips = knownTrips();
+    if (selected && !trips.includes(selected)) trips.unshift(selected);
+    editTripSelect.innerHTML = trips.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('') +
+      `<option value="${NEW_TRIP}">＋ Neue Reise…</option>`;
+    editTripSelect.value = selected && trips.includes(selected) ? selected : (trips[0] || NEW_TRIP);
+    editTrip.value = '';
+    updateEditTripInput();
+  }
+
+  function updateEditTripInput() {
+    const isNew = editTripSelect.value === NEW_TRIP;
+    editTrip.style.display = isNew ? 'block' : 'none';
+    if (isNew && !editTrip.value) editTrip.value = currentMonthKey() + ' ';
+  }
+
+  editTripSelect.addEventListener('change', () => {
+    updateEditTripInput();
+    if (editTripSelect.value === NEW_TRIP) editTrip.focus();
+  });
+
+  function currentEditTrip() {
+    return normalizeTrip(editTripSelect.value === NEW_TRIP ? editTrip.value : editTripSelect.value);
+  }
 
   closeEditBtn.addEventListener('click', () => editDialog.close());
 
@@ -1015,7 +1040,7 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Bitte Wo/Wofür angeben.', '⚠️', 'error');
       return;
     }
-    const editTripName = editType.value === TYPE_TRIP ? normalizeTrip(editTrip.value) : '';
+    const editTripName = editType.value === TYPE_TRIP ? currentEditTrip() : '';
     if (editType.value === TYPE_TRIP && !editTripName) {
       showToast('Bitte einen Reisenamen angeben.', '✈️', 'error');
       return;
