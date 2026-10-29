@@ -1157,7 +1157,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---------- Kleinausgaben-Analyse (nur Typ leer/„Familie“, ohne Reise, Anschaffung, Persönlich) ----------
-  function renderSmallSpend() {
+  // Generische 6-Monats-Tabelle je Person für einen Kosten-Topf (family | personal | shared | trip)
+  function sixMonthHtml(bucket, opts) {
+    const cSa = opts.colorSa, cSo = opts.colorSo;
     const running = summaryMonth === currentMonthKey();
     // Laufender Monat ist unvollständig → Ø über die 6 abgeschlossenen Monate davor
     const end = running ? shiftMonth(summaryMonth, -1) : summaryMonth;
@@ -1165,8 +1167,9 @@ document.addEventListener('DOMContentLoaded', () => {
     for (let i = 0; i < 6; i++) keys.push(shiftMonth(end, -i)); // neuester zuerst
     const val = (k) => {
       const mm = getMonth(k);
-      const sa = mm.family.Sascha || 0;
-      const so = mm.family.Sonja || 0;
+      const b = mm[bucket] || {};
+      const sa = b.Sascha || 0;
+      const so = b.Sonja || 0;
       return { k, sa, so, t: sa + so };
     };
     const rows = keys.map(val);
@@ -1181,16 +1184,18 @@ document.addEventListener('DOMContentLoaded', () => {
       <span class="num ${extraCls}">${fmtEur(r.sa)}</span>
       <span class="num ${extraCls}">${fmtEur(r.so)}</span>
       <span class="num tot ${extraCls}">${fmtEur(r.t)}</span>
-      <div class="stack"><span class="sa" style="width:${(r.sa / maxT) * 100}%"></span><span class="so" style="width:${(r.so / maxT) * 100}%"></span><span class="avg-mark" style="left:${(avgT / maxT) * 100}%"></span></div>`;
+      <div class="stack"><span style="height:100%; border-radius:4px 0 0 4px; background:${cSa}; width:${(r.sa / maxT) * 100}%"></span><span style="height:100%; border-radius:0 4px 4px 0; background:${cSo}; width:${(r.so / maxT) * 100}%"></span><span class="avg-mark" style="left:${(avgT / maxT) * 100}%"></span></div>`;
 
     const shareSa = avgT > 0 ? Math.round((avgSa / avgT) * 100) : 0;
     let curNote = '';
     if (cur) {
       const pct = avgT > 0 ? Math.round((cur.t / avgT) * 100) : 0;
-      curNote = `<div class="muted-note" style="text-align:left;">${MONTH_NAMES[Number(summaryMonth.slice(5)) - 1]} läuft noch: bisher ${fmtEur(cur.t)} = ${pct} % des 6-Monats-Ø (nicht im Ø enthalten).</div>`;
+      curNote = `<div class="muted-note" style="text-align:left;">${MONTH_NAMES[Number(summaryMonth.slice(5)) - 1]} läuft noch: bisher ${fmtEur(cur.t)}${avgT > 0 ? ` = ${pct} % des 6-Monats-Ø` : ''} (nicht im Ø enthalten).</div>`;
     }
 
-    summarySmall.innerHTML = `
+    return `<div style="display:flex; flex-direction:column; gap:10px;">
+      ${opts.title ? `<div class="card-title" style="margin-top:6px; border-top:1px dashed var(--surface-border); padding-top:12px;"><span>${opts.title}</span></div>` : ''}
+      <div class="legend"><span><i style="background:${cSa}"></i>Sascha</span><span><i style="background:${cSo}"></i>Sonja</span><span><i style="background:#f8fafc"></i>Ø 6 Monate</span></div>
       <div class="small-kpis">
         <div class="small-kpi"><div class="k">Ø Sascha</div><div class="v">${fmtEur(avgSa)}</div></div>
         <div class="small-kpi"><div class="k">Ø Sonja</div><div class="v">${fmtEur(avgSo)}</div></div>
@@ -1206,7 +1211,14 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="num avg">${fmtEur(avgT)}</span>
       </div>
       ${curNote}
-      <div class="muted-note" style="text-align:left;">Anteil im Ø: Sascha ${shareSa} % · Sonja ${avgT > 0 ? 100 - shareSa : 0} % · Zeitraum ${monthName(keys[5], true)} – ${monthName(keys[0], true)}. Nur Typ „Familie“ bzw. leer – ohne Reisen, Anschaffungen und persönliche Kosten.</div>`;
+      <div class="muted-note" style="text-align:left;">${avgT > 0 ? `Anteil im Ø: Sascha ${shareSa} % · Sonja ${100 - shareSa} % · ` : ''}Zeitraum ${monthName(keys[5], true)} – ${monthName(keys[0], true)}.${opts.note ? ' ' + opts.note : ''}</div></div>`;
+  }
+
+  function renderSmallSpend() {
+    summarySmall.innerHTML = sixMonthHtml('family', {
+      colorSa: '#10b981', colorSo: '#38bdf8',
+      note: 'Nur Typ „Familie“ bzw. leer – ohne Reisen, Anschaffungen und persönliche Kosten.'
+    });
   }
 
   // ---------- Gesamtkosten aller Arten: letzte 6 Monate ----------
@@ -1335,6 +1347,10 @@ document.addEventListener('DOMContentLoaded', () => {
       ${total > 0 ? `<div class="sum-row total"><span>Gesamt</span><span class="val">${fmtEur(total)}</span></div>
       <div class="sum-row"><span>je Person (50 %)</span><span class="val">${fmtEur(total / 2)}</span></div>` : ''}
       <div class="muted-note" style="text-align:left;">Zählt nicht im Ausgleich. Letzte 12 Monate: ${fmtEur(last12)} (je ${fmtEur(last12 / 2)})</div>`;
+    summaryShared.innerHTML += sixMonthHtml('shared', {
+      title: '📅 Letzte 6 Monate', colorSa: '#f59e0b', colorSo: '#fcd34d',
+      note: 'Spalten = wer bezahlt hat. Kostenanteil je Person = ½ von Gesamt.'
+    });
   }
 
   // ---------- Reisen-Saldo ----------
@@ -1462,6 +1478,10 @@ document.addEventListener('DOMContentLoaded', () => {
     summaryPersonal.innerHTML = personRows + sharedRows +
       (pSascha + pSonja === 0 && sharedTotal === 0 ? '<div class="muted-note" style="text-align:left;">Noch keine persönlichen Kosten in diesem Monat. Zum Erfassen oben „Persönlich“ wählen.</div>' : '') +
       `<div class="muted-note" style="text-align:left;">Ø pro Monat (12 Monate): Familie ${fmtEur(avgF)} · Persönlich ${currentPayer} ${fmtEur(avgP)}</div>`;
+    summaryPersonal.innerHTML += sixMonthHtml('personal', {
+      title: '📅 Letzte 6 Monate', colorSa: '#8b5cf6', colorSo: '#c4b5fd',
+      note: 'Nur Typ „Persönlich“ (ohne ½ gemeinsame Anschaffungen).'
+    });
 
     renderTotalTrend();
 
@@ -1650,10 +1670,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.6')
+      navigator.serviceWorker.register('./sw.js?v=3.7')
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.6 aktiv.');
+          console.log('Service Worker v3.7 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
