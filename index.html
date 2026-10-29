@@ -739,6 +739,24 @@
     .trend-row { display: grid; grid-template-columns: 74px 1fr 76px; align-items: center; gap: 8px; font-size: 0.8rem; }
     .trend-row .lbl { color: var(--text-muted); }
     .trend-row .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+    /* v3.5: Kleinausgaben-Analyse */
+    .small-grid { display: grid; grid-template-columns: 62px 1fr 1fr 1fr; gap: 4px 8px; align-items: center; font-size: 0.82rem; }
+    .small-grid .h { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-subtle); text-align: right; }
+    .small-grid .h:first-child { text-align: left; }
+    .small-grid .lbl { color: var(--text-muted); }
+    .small-grid .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .small-grid .tot { font-weight: 700; }
+    .small-grid .running { color: var(--text-subtle); font-style: italic; }
+    .small-grid .avg { font-weight: 800; color: var(--text); border-top: 1px dashed var(--surface-border); padding-top: 8px; margin-top: 2px; }
+    .stack { grid-column: 1 / -1; position: relative; height: 7px; border-radius: 4px; background: var(--surface-elevated); display: flex; overflow: visible; margin-bottom: 6px; }
+    .stack .sa { background: #10b981; height: 100%; border-radius: 4px 0 0 4px; }
+    .stack .so { background: #38bdf8; height: 100%; border-radius: 0 4px 4px 0; }
+    .stack .avg-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fbbf24; border-radius: 1px; }
+    .small-kpis { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .small-kpi { background: var(--surface-elevated); border-radius: var(--radius-sm); padding: 10px 8px; text-align: center; }
+    .small-kpi .k { font-size: 0.68rem; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+    .small-kpi .v { font-size: 1rem; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
     .legend { display: flex; gap: 14px; font-size: 0.72rem; color: var(--text-subtle); }
     .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 
@@ -991,6 +1009,12 @@
       </section>
 
       <section class="card">
+        <div class="card-title"><span>📈 Kleinausgaben Familie · 6 Monate</span></div>
+        <div class="legend"><span><i style="background:#10b981"></i>Sascha</span><span><i style="background:#38bdf8"></i>Sonja</span><span><i style="background:#fbbf24"></i>Ø 6 Monate</span></div>
+        <div id="summary-small" style="display:flex; flex-direction:column; gap:12px;"></div>
+      </section>
+
+      <section class="card">
         <div class="card-title"><span>👤 Persönliche Kosten</span></div>
         <div id="summary-personal"></div>
       </section>
@@ -1012,7 +1036,7 @@
 
       <section class="card">
         <div class="card-title"><span>Letzte 6 Monate</span></div>
-        <div class="legend"><span><i style="background:#10b981"></i>Familie gesamt</span><span><i style="background:#8b5cf6"></i>Persönlich <span id="trend-person"></span></span></div>
+        <div class="legend"><span><i style="background:#10b981"></i>Familie (Kleinausgaben)</span><span><i style="background:#8b5cf6"></i>Persönlich <span id="trend-person"></span></span></div>
         <div id="summary-trend" style="display:flex; flex-direction:column; gap:8px;"></div>
       </section>
       <div class="muted-note" id="summary-note"></div>
@@ -1124,7 +1148,7 @@
       <button type="button" class="btn-secondary" id="test-connection-btn">Verbindung testen</button>
       <button type="button" class="btn-secondary" id="share-link-btn" style="display: none; border-color: #10b981; color: #34d399;">🔗 Setup-Link für Partnerin kopieren</button>
       <button type="button" class="btn-secondary" id="force-reload-btn" style="color: var(--text-subtle); font-size: 0.75rem; padding: 6px; border: none; background: transparent;">🔄 App-Cache leeren & aktualisieren</button>
-      <div class="muted-note" id="version-note">App-Version 3.4</div>
+      <div class="muted-note" id="version-note">App-Version 3.5</div>
     </div>
     <div class="dialog-footer">
       <button type="button" class="submit-btn" id="save-settings-btn" style="margin-top: 0;">Speichern</button>
@@ -1133,7 +1157,7 @@
 
   <!-- Scripts -->
   <script src="config.js"></script>
-  <script src="app.js?v=3.4"></script>
+  <script src="app.js?v=3.5"></script>
 
 </body>
 </html>

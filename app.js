@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const summaryFamily = $('summary-family');
   const summaryPersonal = $('summary-personal');
   const summaryTrend = $('summary-trend');
+  const summarySmall = $('summary-small');
   const summaryNote = $('summary-note');
   const trendPerson = $('trend-person');
   const summaryClose = $('summary-close');
@@ -1156,6 +1157,59 @@ document.addEventListener('DOMContentLoaded', () => {
     return m || { month: key, family: {}, personal: {}, trip: {}, shared: {}, count: 0 };
   }
 
+  // ---------- Kleinausgaben-Analyse (nur Typ leer/„Familie“, ohne Reise, Anschaffung, Persönlich) ----------
+  function renderSmallSpend() {
+    const running = summaryMonth === currentMonthKey();
+    // Laufender Monat ist unvollständig → Ø über die 6 abgeschlossenen Monate davor
+    const end = running ? shiftMonth(summaryMonth, -1) : summaryMonth;
+    const keys = [];
+    for (let i = 0; i < 6; i++) keys.push(shiftMonth(end, -i)); // neuester zuerst
+    const val = (k) => {
+      const mm = getMonth(k);
+      const sa = mm.family.Sascha || 0;
+      const so = mm.family.Sonja || 0;
+      return { k, sa, so, t: sa + so };
+    };
+    const rows = keys.map(val);
+    const avgSa = rows.reduce((a, r) => a + r.sa, 0) / 6;
+    const avgSo = rows.reduce((a, r) => a + r.so, 0) / 6;
+    const avgT = avgSa + avgSo;
+    const cur = running ? val(summaryMonth) : null;
+    const maxT = Math.max(1, avgT, ...rows.map(r => r.t), cur ? cur.t : 0);
+
+    const rowHtml = (r, extraCls = '', label = monthName(r.k, true)) => `
+      <span class="lbl ${extraCls}">${label}</span>
+      <span class="num ${extraCls}">${fmtEur(r.sa)}</span>
+      <span class="num ${extraCls}">${fmtEur(r.so)}</span>
+      <span class="num tot ${extraCls}">${fmtEur(r.t)}</span>
+      <div class="stack"><span class="sa" style="width:${(r.sa / maxT) * 100}%"></span><span class="so" style="width:${(r.so / maxT) * 100}%"></span><span class="avg-mark" style="left:${(avgT / maxT) * 100}%"></span></div>`;
+
+    const shareSa = avgT > 0 ? Math.round((avgSa / avgT) * 100) : 0;
+    let curNote = '';
+    if (cur) {
+      const pct = avgT > 0 ? Math.round((cur.t / avgT) * 100) : 0;
+      curNote = `<div class="muted-note" style="text-align:left;">${MONTH_NAMES[Number(summaryMonth.slice(5)) - 1]} läuft noch: bisher ${fmtEur(cur.t)} = ${pct} % des 6-Monats-Ø (nicht im Ø enthalten).</div>`;
+    }
+
+    summarySmall.innerHTML = `
+      <div class="small-kpis">
+        <div class="small-kpi"><div class="k">Ø Sascha</div><div class="v">${fmtEur(avgSa)}</div></div>
+        <div class="small-kpi"><div class="k">Ø Sonja</div><div class="v">${fmtEur(avgSo)}</div></div>
+        <div class="small-kpi"><div class="k">Ø Gesamt</div><div class="v">${fmtEur(avgT)}</div></div>
+      </div>
+      <div class="small-grid">
+        <span class="h">Monat</span><span class="h">Sascha</span><span class="h">Sonja</span><span class="h">Gesamt</span>
+        ${cur ? rowHtml(cur, 'running', monthName(cur.k, true) + '*') : ''}
+        ${rows.map(r => rowHtml(r)).join('')}
+        <span class="lbl avg">Ø 6 M.</span>
+        <span class="num avg">${fmtEur(avgSa)}</span>
+        <span class="num avg">${fmtEur(avgSo)}</span>
+        <span class="num avg">${fmtEur(avgT)}</span>
+      </div>
+      ${curNote}
+      <div class="muted-note" style="text-align:left;">Anteil im Ø: Sascha ${shareSa} % · Sonja ${avgT > 0 ? 100 - shareSa : 0} % · Zeitraum ${monthName(keys[5], true)} – ${monthName(keys[0], true)}. Nur Typ „Familie“ bzw. leer – ohne Reisen, Anschaffungen und persönliche Kosten.</div>`;
+  }
+
   // ---------- Monatsabschluss (Werte für die Obsidian-Monatsnotiz) ----------
   const TARGETS = { anschaffungen: 250, anschaffungenMax: 400, lebensmittel: 850 };
 
@@ -1294,6 +1348,7 @@ document.addEventListener('DOMContentLoaded', () => {
       summaryFamily.innerHTML = '<div class="empty-state">Noch keine Daten geladen.</div>';
       summaryPersonal.innerHTML = '';
       summaryTrend.innerHTML = '';
+      summarySmall.innerHTML = '';
       summaryClose.innerHTML = '';
       tripsCard.style.display = 'none';
       summaryNote.textContent = '';
@@ -1302,6 +1357,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     renderClose();
     renderTrips();
+    renderSmallSpend();
 
     const m = getMonth(summaryMonth);
     renderShared(m);
@@ -1566,10 +1622,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.4')
+      navigator.serviceWorker.register('./sw.js?v=3.5')
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.4 aktiv.');
+          console.log('Service Worker v3.5 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
