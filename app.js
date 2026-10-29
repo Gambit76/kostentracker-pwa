@@ -80,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const summaryTrend = $('summary-trend');
   const summarySmall = $('summary-small');
   const summaryNote = $('summary-note');
-  const trendPerson = $('trend-person');
   const summaryClose = $('summary-close');
   const closePerson = $('close-person');
   const tripsCard = $('trips-card');
@@ -1210,6 +1209,52 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="muted-note" style="text-align:left;">Anteil im Ø: Sascha ${shareSa} % · Sonja ${avgT > 0 ? 100 - shareSa : 0} % · Zeitraum ${monthName(keys[5], true)} – ${monthName(keys[0], true)}. Nur Typ „Familie“ bzw. leer – ohne Reisen, Anschaffungen und persönliche Kosten.</div>`;
   }
 
+  // ---------- Gesamtkosten aller Arten: letzte 6 Monate ----------
+  const TOTAL_PARTS = [
+    { key: 'family', label: 'Kleinausgaben', color: '#10b981' },
+    { key: 'trip', label: 'Reise', color: '#0ea5e9' },
+    { key: 'shared', label: 'Anschaffung', color: '#f59e0b' },
+    { key: 'personal', label: 'Persönlich', color: '#8b5cf6' }
+  ];
+  const sumObj = (o) => Object.values(o || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+
+  function renderTotalTrend() {
+    const running = summaryMonth === currentMonthKey();
+    const end = running ? shiftMonth(summaryMonth, -1) : summaryMonth;
+    const keys = [];
+    for (let i = 0; i < 6; i++) keys.push(shiftMonth(end, -i)); // neuester zuerst
+    const val = (k) => {
+      const mm = getMonth(k);
+      const parts = TOTAL_PARTS.map(p => sumObj(mm[p.key]));
+      return { k, parts, t: parts.reduce((a, b) => a + b, 0) };
+    };
+    const rows = keys.map(val);
+    const cur = running ? val(summaryMonth) : null;
+    const avgParts = TOTAL_PARTS.map((_, i) => rows.reduce((a, r) => a + r.parts[i], 0) / 6);
+    const avgT = avgParts.reduce((a, b) => a + b, 0);
+    const maxT = Math.max(1, avgT, ...rows.map(r => r.t), cur ? cur.t : 0);
+
+    const rowHtml = (r, cls = '', label = monthName(r.k, true)) => `
+      <div>
+        <div class="sum-row ${cls}" style="font-size:0.85rem;"><span class="${cls ? '' : 'lbl'}" style="color:var(--text-muted);">${label}</span><span class="val">${fmtEur(r.t)}</span></div>
+        <div class="stack" style="margin-top:4px;">
+          ${r.parts.map((v, i) => v > 0 ? `<span style="width:${(v / maxT) * 100}%; background:${TOTAL_PARTS[i].color}; height:100%;"></span>` : '').join('')}
+          <span class="avg-mark" style="left:${(avgT / maxT) * 100}%"></span>
+        </div>
+        <div class="muted-note" style="text-align:left; font-size:0.7rem;">${TOTAL_PARTS.map((p, i) => r.parts[i] > 0 ? `${p.label} ${fmtEur(r.parts[i])}` : '').filter(Boolean).join(' · ') || 'Keine Einträge'}</div>
+      </div>`;
+
+    summaryTrend.innerHTML = `
+      <div class="small-kpis" style="grid-template-columns: 1fr 1fr;">
+        <div class="small-kpi"><div class="k">Ø Gesamt / Monat</div><div class="v">${fmtEur(avgT)}</div></div>
+        <div class="small-kpi"><div class="k">davon Kleinausgaben</div><div class="v">${avgT > 0 ? Math.round((avgParts[0] / avgT) * 100) : 0} %</div></div>
+      </div>
+      ${cur ? rowHtml(cur, 'running', monthName(cur.k, true) + '* (läuft)') : ''}
+      ${rows.map(r => rowHtml(r)).join('')}
+      <div class="sum-row total"><span>Ø 6 Monate</span><span class="val">${fmtEur(avgT)}</span></div>
+      <div class="muted-note" style="text-align:left;">Ø je Art: ${TOTAL_PARTS.map((p, i) => `${p.label} ${fmtEur(avgParts[i])}`).join(' · ')}. Alle Einträge im Sheet, Sascha und Sonja zusammen. Reisen zählen im Monat der Buchung.</div>`;
+  }
+
   // ---------- Monatsabschluss (Werte für die Obsidian-Monatsnotiz) ----------
   const TARGETS = { anschaffungen: 250, anschaffungenMax: 400, lebensmittel: 850 };
 
@@ -1418,24 +1463,7 @@ document.addEventListener('DOMContentLoaded', () => {
       (pSascha + pSonja === 0 && sharedTotal === 0 ? '<div class="muted-note" style="text-align:left;">Noch keine persönlichen Kosten in diesem Monat. Zum Erfassen oben „Persönlich“ wählen.</div>' : '') +
       `<div class="muted-note" style="text-align:left;">Ø pro Monat (12 Monate): Familie ${fmtEur(avgF)} · Persönlich ${currentPayer} ${fmtEur(avgP)}</div>`;
 
-    // Trend: letzte 6 Monate bis zum gewählten Monat
-    trendPerson.textContent = currentPayer;
-    const keys = [];
-    for (let i = 5; i >= 0; i--) keys.push(shiftMonth(summaryMonth, -i));
-    const rows = keys.map(k => {
-      const mm = getMonth(k);
-      return { k, fam: (mm.family.Sascha || 0) + (mm.family.Sonja || 0), per: mm.personal[currentPayer] || 0 };
-    });
-    const maxT = Math.max(1, ...rows.map(r => Math.max(r.fam, r.per)));
-    summaryTrend.innerHTML = rows.map(r => `
-      <div>
-        <div class="trend-row"><span class="lbl">${monthName(r.k, true)}</span>
-          <div class="bar fam"><span style="width:${(r.fam / maxT) * 100}%"></span></div>
-          <span class="num">${fmtEur(r.fam)}</span></div>
-        <div class="trend-row"><span></span>
-          <div class="bar per"><span style="width:${(r.per / maxT) * 100}%"></span></div>
-          <span class="num" style="color:#c4b5fd;">${fmtEur(r.per)}</span></div>
-      </div>`).join('');
+    renderTotalTrend();
 
     const when = sheetData.generatedAt ? new Date(sheetData.generatedAt) : null;
     summaryNote.textContent = 'Nur variable Kosten aus „Familie Variable Kosten“' +
@@ -1622,10 +1650,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.5')
+      navigator.serviceWorker.register('./sw.js?v=3.6')
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.5 aktiv.');
+          console.log('Service Worker v3.6 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
