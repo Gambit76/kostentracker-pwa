@@ -45,11 +45,11 @@ const CONFIG = {
   DEFAULT_TYPE: "Familie",
   PAYERS: ["Sascha", "Sonja"],
   RECENT_LIMIT: 150,        // mindestens so viele letzte Einträge gehen an den Verlauf …
-  RECENT_MONTHS: 3,         // … und zusätzlich alle Einträge der letzten 3 Kalendermonate
+  RECENT_MONTHS: 7,         // … und zusätzlich alle Einträge des laufenden + der 6 vollen Vormonate (für Verlauf & Analyse)
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.3"
+  VERSION: "3.4"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8 };

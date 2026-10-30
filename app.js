@@ -869,6 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!btn) return;
       seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
       historyFilter[key] = btn.dataset.val;
+      historyLimit = HISTORY_PAGE;
       renderHistory();
     });
   }
@@ -876,6 +877,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindSeg(filterPayerSeg, 'payer');
   historySearch.addEventListener('input', () => {
     historyFilter.q = historySearch.value.trim().toLowerCase();
+    historyLimit = HISTORY_PAGE;
     renderHistory();
   });
 
@@ -910,6 +912,21 @@ document.addEventListener('DOMContentLoaded', () => {
       </button>`;
   }
 
+  const HISTORY_PAGE = 150;
+  let historyLimit = HISTORY_PAGE;
+
+  // Erster Tag des Monats, ab dem die 6-Monats-Analyse vollständige Einzelbuchungen braucht
+  function sixMonthStartIso() {
+    return shiftMonth(currentMonthKey(), -6) + '-01';
+  }
+
+  function recentFromIso() {
+    if (!sheetData) return '';
+    if (sheetData.recentFrom) return sheetData.recentFrom;
+    const isos = (sheetData.entries || []).map(e => e.iso).filter(Boolean).sort();
+    return isos[0] || '';
+  }
+
   function renderHistory() {
     const pending = offlineQueue.map(q => ({
       position: q.position, amount: q.amount, paidBy: q.paidBy, type: q.type || TYPE_FAMILY,
@@ -931,7 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Nach Tag gruppieren
       const groups = [];
       let cur = null;
-      all.slice(0, 120).forEach(e => {
+      all.slice(0, historyLimit).forEach(e => {
         if (!cur || cur.iso !== e.iso) {
           cur = { iso: e.iso, items: [], sum: 0 };
           groups.push(cur);
@@ -943,15 +960,27 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="day-group">
           <div class="day-header"><span>${escapeHtml(dayHeader(g.iso))}</span><span>${fmtEur(g.sum)}</span></div>
           ${g.items.map(e => entryHtml(e, !!e.pending)).join('')}
-        </div>`).join('');
+        </div>`).join('') +
+        (all.length > historyLimit
+          ? `<button type="button" class="icon-btn" id="history-more-btn" style="padding:10px;">Weitere ${Math.min(HISTORY_PAGE, all.length - historyLimit)} von ${all.length - historyLimit} anzeigen</button>`
+          : '');
     }
     const when = sheetData.generatedAt ? new Date(sheetData.generatedAt) : null;
-    historyNote.textContent = `Letzte ${(sheetData.entries || []).length} Einträge aus dem Sheet` +
+    const from = recentFromIso();
+    const incomplete = from && from > sixMonthStartIso();
+    historyNote.textContent = `${(sheetData.entries || []).length} Einträge aus dem Sheet` +
+      (from ? ` seit ${isoToGerman(from)}` : '') +
+      (incomplete ? ' · ⚠️ Backend liefert weniger als 6 Monate – bitte Code.gs aktualisieren (RECENT_MONTHS: 7)' : '') +
       (when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '') +
       ' · Tippen zum Bearbeiten';
   }
 
   historyList.addEventListener('click', (e) => {
+    if (e.target.closest('#history-more-btn')) {
+      historyLimit += HISTORY_PAGE;
+      renderHistory();
+      return;
+    }
     const item = e.target.closest('.entry-item[data-key]');
     if (!item || !sheetData) return;
     const key = item.dataset.key;
@@ -1670,10 +1699,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.7')
+      navigator.serviceWorker.register('./sw.js?v=3.8')
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.7 aktiv.');
+          console.log('Service Worker v3.8 aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
