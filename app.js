@@ -15,7 +15,7 @@
  * Neu in v3.1:
  *  - Typ "Reise" mit Reisename (Spalte G) – erscheint erst, wenn das Backend v3.1 läuft
  *  - Reisen-Saldo pro Reise inkl. 50/50-Ausgleich und Werten für die Obsidian-Reisenotiz
- *  - Monatsabschluss: Anschaffungen ≥ 100 €, Kleidung, Bargeld, Lebensmittel als Obsidian-Properties zum Kopieren
+ *  - Monatsabschluss: Anschaffungen ≥ 100 € (persönlich), gemeinsame Anschaffungen (½), Kleidung, Bargeld, Lebensmittel als Obsidian-Properties zum Kopieren
  *
  * Neu in v3:
  *  - Typ-Umschalter Familie / Persönlich (Spalte F im Sheet)
@@ -1347,16 +1347,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const sum = (list) => Math.round(list.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100) / 100;
 
     const sShared = Math.round(sum(shared) / 2 * 100) / 100;
-    const sA = Math.round((sum(anschaffungen) + sShared) * 100) / 100, sK = sum(kleidung), sL = sum(lebensmittel), sB = sum(bargeld);
-    const yaml = `anschaffungen: ${Math.round(sA)}\nkleidung: ${Math.round(sK)}\nbargeld: ${Math.round(sB)}\nlebensmittel: ${Math.round(sL)}`;
+    const sA = sum(anschaffungen), sG = sShared, sK = sum(kleidung), sL = sum(lebensmittel), sB = sum(bargeld);
+    const yaml = `anschaffungen: ${Math.round(sA)}\nanschaffungen_gemeinsam: ${Math.round(sG)}\nkleidung: ${Math.round(sK)}\nbargeld: ${Math.round(sB)}\nlebensmittel: ${Math.round(sL)}`;
     const listHtml = (list) => list.length
       ? `<div class="close-list">${list.map(e => `<div><span>${escapeHtml(e.date)} · ${escapeHtml(e.position)}</span><span>${fmtEur(e.amount)}</span></div>`).join('')}</div>`
       : '';
 
     summaryClose.innerHTML = `
       ${complete ? '' : '<div class="muted-note" style="text-align:left; color:#fbbf24;">⚠️ Für diesen Monat liegen nicht alle Einzelbuchungen in der App vor. Werte sind unvollständig.</div>'}
-      <div class="sum-row"><span>Anschaffungen ≥ 100 €${targetSpan(sA, TARGETS.anschaffungen, TARGETS.anschaffungenMax)}</span><span class="val">${fmtEur(sA)}</span></div>
+      <div class="sum-row"><span>Anschaffungen persönlich ≥ 100 €${targetSpan(sA, TARGETS.anschaffungen, TARGETS.anschaffungenMax)}</span><span class="val">${fmtEur(sA)}</span></div>
       ${listHtml(anschaffungen)}
+      <div class="sum-row"><span>Gemeinsame Anschaffungen (dein Anteil ½)</span><span class="val">${fmtEur(sG)}</span></div>
       ${shared.length ? `<div class="close-list">${shared.map(e => `<div><span>${escapeHtml(e.date)} · 🛋️ ${escapeHtml(e.position)} (½ von ${fmtEur(e.amount)})</span><span>${fmtEur(e.amount / 2)}</span></div>`).join('')}</div>` : ''}
       <div class="sum-row"><span>Kleidung</span><span class="val">${fmtEur(sK)}</span></div>
       <div class="sum-row"><span>Bargeld (Abhebungen)${targetSpan(sB, TARGETS.bargeld)}</span><span class="val">${fmtEur(sB)}</span></div>
@@ -1365,7 +1366,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ${familyBig.length ? `<div class="muted-note" style="text-align:left;">Familien-Käufe ≥ 100 € von dir (nicht mitgezählt, ggf. selbst addieren):</div>${listHtml(familyBig)}` : ''}
       <pre class="yaml-box" id="close-yaml">${escapeHtml(yaml)}</pre>
       <button type="button" class="icon-btn copy-btn" id="close-copy-btn" data-label="📋 Für Obsidian kopieren">📋 Für Obsidian kopieren</button>
-      <div class="muted-note" style="text-align:left;">Topf und Kontostand kommen aus der Banking-App. Bargeld = Einträge „Bargeld“ (Abhebungen), die du hier erfasst hast; fehlt eine Abhebung, steht sie nur in der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung, Gastro/Ausgehen, Bargeld, Spenden und Urlaub, plus deine Hälfte der gemeinsamen Anschaffungen.</div>`;
+      <div class="muted-note" style="text-align:left;">Topf und Kontostand kommen aus der Banking-App. Bargeld = Einträge „Bargeld“ (Abhebungen), die du hier erfasst hast; fehlt eine Abhebung, steht sie nur in der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung, Gastro/Ausgehen, Bargeld, Spenden und Urlaub. Gemeinsame Anschaffungen mit Sonja stehen separat (deine Hälfte) und zählen nicht ins 250-€-Budget.</div>`;
     $('close-copy-btn').addEventListener('click', (e) => copyText(yaml, e.currentTarget));
   }
 

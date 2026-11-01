@@ -18,7 +18,7 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ## 🆕 Version 3.3 (Oktober 2026)
 - **Typ „Anschaffung“** (vierter Umschalter, orange) für gemeinsame Anschaffungen wie Möbel, TV oder Haushaltsgeräte. Einmal mit dem Gesamtbetrag erfassen.
-- Zählt **nicht** im monatlichen Familien-Ausgleich und nicht in der Familien-Pivot, wird aber **je 50 %** den Monatskosten von Sascha und Sonja zugerechnet (Übersicht → „Persönliche Kosten“ und „Monatsabschluss“ → `anschaffungen`).
+- Zählt **nicht** im monatlichen Familien-Ausgleich und nicht in der Familien-Pivot, wird aber **je 50 %** den Monatskosten von Sascha und Sonja zugerechnet (Übersicht → „Persönliche Kosten“ und „Monatsabschluss“ → `anschaffungen_gemeinsam`).
 - Übersicht: neue Karte „Gemeinsame Anschaffungen“ (Monat, je Person, letzte 12 Monate).
 - Sheet: Dropdown für Spalte F „Typ“ und neuer Reiter **„Gemeinsame Anschaffungen“** (automatische Liste und Monatssummen per `QUERY`).
 - Abwärtskompatibel: Der Umschalter erscheint erst mit Backend v3.3.
@@ -36,7 +36,7 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 ## Version 3.1 (Oktober 2026)
 - **Typ „Reise“** (dritter Umschalter, blau) mit Reiseauswahl im Format `JJJJ-MM Name` (z. B. `2026-10 Teneriffa`), gespeichert in **Spalte G „Reise“**. Reisekosten zählen **nicht** im monatlichen Familien-Ausgleich und nicht in der Pivot (Filter `Typ ∈ {leer, Familie}`).
 - **Übersicht → Reisen:** Summe pro Reise, wer was bezahlt hat, Ausgleich 50/50 und Button „Für Reisenotiz kopieren“ (`ist_gesamt`, `anteil_sonja` für die Obsidian-Reisenotiz).
-- **Übersicht → Monatsabschluss:** Anschaffungen ≥ 100 € (persönlich, ohne Lebensmittel/Kleidung/Gastro), Kleidung, Bargeld (Ziel ≤ 150 €) und Lebensmittel des gewählten Monats – als Obsidian-Properties zum Kopieren. Kategorien werden automatisch aus Position/Kommentar erkannt (`CATEGORY_RULES` in `app.js`).
+- **Übersicht → Monatsabschluss:** Anschaffungen ≥ 100 € (persönlich, ohne Lebensmittel/Kleidung/Gastro), gemeinsame Anschaffungen (deine Hälfte, separat), Kleidung, Bargeld (Ziel ≤ 150 €) und Lebensmittel des gewählten Monats – als Obsidian-Properties zum Kopieren. Kategorien werden automatisch aus Position/Kommentar erkannt (`CATEGORY_RULES` in `app.js`).
 - **Abwärtskompatibel:** Der Reise-Umschalter erscheint erst, wenn das Backend v3.1 meldet (`types` enthält „Reise“). Mit Backend v3.0 läuft alles wie bisher.
 - Backend liefert jetzt alle Einträge der letzten 3 Monate (mind. 150) für den Monatsabschluss.
 
