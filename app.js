@@ -170,6 +170,10 @@ document.addEventListener('DOMContentLoaded', () => {
     [TYPE_TRIP]: ['Flug', 'Unterkunft', 'Mietwagen', 'Restaurant', 'Supermarkt', 'Eintritt', 'Ausflug', 'Taxi', 'Parken', 'Souvenirs'],
     [TYPE_SHARED]: ['Möbel', 'TV', 'Elektrogerät', 'Haushaltsgerät', 'Küche', 'Garten', 'Lampe', 'Teppich', 'IKEA', 'Bauhaus']
   };
+  // Immer als erster Schnellwahl-Chip (unabhängig von der Häufigkeit im Sheet)
+  const PINNED_CHIPS = {
+    [TYPE_PERSONAL]: ['Bargeld']
+  };
 
   // ---------- Kategorien (für den Monatsabschluss) ----------
   // Reihenfolge zählt: erster Treffer gewinnt.
@@ -215,6 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
     [/dm|rossmann|drogerie|windel|pampers/i, '🧴'],
     [/tank|benzin|laden/i, '⛽'],
     [/essen|restaurant|mittag|lieferando|mcdonald|pizza|vapiano/i, '🍽️'],
+    [/bargeld|geldautomat|abhebung/i, '💶'],
     [/kiosk|zeitung/i, '📰'],
     [/sport|fitness/i, '🏋️'],
     [/buch|bücher/i, '📚'],
@@ -531,6 +536,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (chips.length < 6) {
       const extra = DEFAULT_CHIPS[currentType].filter(c => !chips.includes(c));
       chips = chips.concat(extra).slice(0, 10);
+    }
+    const pinned = PINNED_CHIPS[currentType] || [];
+    if (pinned.length) {
+      const isPinned = c => pinned.some(p => p.toLowerCase() === c.toLowerCase());
+      chips = pinned.concat(chips.filter(c => !isPinned(c))).slice(0, 10);
     }
     chipsContainer.innerHTML = chips.map(pos =>
       `<button type="button" class="chip-btn" data-pos="${escapeHtml(pos)}">${chipIcon(pos)} ${escapeHtml(pos)}</button>`
