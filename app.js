@@ -15,7 +15,7 @@
  * Neu in v3.1:
  *  - Typ "Reise" mit Reisename (Spalte G) – erscheint erst, wenn das Backend v3.1 läuft
  *  - Reisen-Saldo pro Reise inkl. 50/50-Ausgleich und Werten für die Obsidian-Reisenotiz
- *  - Monatsabschluss: Anschaffungen ≥ 100 €, Kleidung, Lebensmittel als Obsidian-Properties zum Kopieren
+ *  - Monatsabschluss: Anschaffungen ≥ 100 €, Kleidung, Bargeld, Lebensmittel als Obsidian-Properties zum Kopieren
  *
  * Neu in v3:
  *  - Typ-Umschalter Familie / Persönlich (Spalte F im Sheet)
@@ -1307,7 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---------- Monatsabschluss (Werte für die Obsidian-Monatsnotiz) ----------
-  const TARGETS = { anschaffungen: 250, anschaffungenMax: 400, lebensmittel: 850 };
+  const TARGETS = { anschaffungen: 250, anschaffungenMax: 400, lebensmittel: 850, bargeld: 150 };
 
   async function copyText(text, btn) {
     try {
@@ -1342,12 +1342,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const anschaffungen = personal.filter(isAnschaffung);
     const kleidung = personal.filter(e => categoryOf(e) === 'Kleidung');
     const lebensmittel = entries.filter(e => (e.type === TYPE_FAMILY || e.type === TYPE_PERSONAL) && categoryOf(e) === 'Lebensmittel');
+    const bargeld = entries.filter(e => (e.type === TYPE_FAMILY || e.type === TYPE_PERSONAL) && categoryOf(e) === 'Bargeld');
     const familyBig = entries.filter(e => e.type === TYPE_FAMILY && isAnschaffung(e));
     const sum = (list) => Math.round(list.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100) / 100;
 
     const sShared = Math.round(sum(shared) / 2 * 100) / 100;
-    const sA = Math.round((sum(anschaffungen) + sShared) * 100) / 100, sK = sum(kleidung), sL = sum(lebensmittel);
-    const yaml = `anschaffungen: ${Math.round(sA)}\nkleidung: ${Math.round(sK)}\nlebensmittel: ${Math.round(sL)}`;
+    const sA = Math.round((sum(anschaffungen) + sShared) * 100) / 100, sK = sum(kleidung), sL = sum(lebensmittel), sB = sum(bargeld);
+    const yaml = `anschaffungen: ${Math.round(sA)}\nkleidung: ${Math.round(sK)}\nbargeld: ${Math.round(sB)}\nlebensmittel: ${Math.round(sL)}`;
     const listHtml = (list) => list.length
       ? `<div class="close-list">${list.map(e => `<div><span>${escapeHtml(e.date)} · ${escapeHtml(e.position)}</span><span>${fmtEur(e.amount)}</span></div>`).join('')}</div>`
       : '';
@@ -1358,11 +1359,13 @@ document.addEventListener('DOMContentLoaded', () => {
       ${listHtml(anschaffungen)}
       ${shared.length ? `<div class="close-list">${shared.map(e => `<div><span>${escapeHtml(e.date)} · 🛋️ ${escapeHtml(e.position)} (½ von ${fmtEur(e.amount)})</span><span>${fmtEur(e.amount / 2)}</span></div>`).join('')}</div>` : ''}
       <div class="sum-row"><span>Kleidung</span><span class="val">${fmtEur(sK)}</span></div>
+      <div class="sum-row"><span>Bargeld (Abhebungen)${targetSpan(sB, TARGETS.bargeld)}</span><span class="val">${fmtEur(sB)}</span></div>
+      ${listHtml(bargeld)}
       <div class="sum-row"><span>Lebensmittel (von dir bezahlt)${targetSpan(sL, TARGETS.lebensmittel)}</span><span class="val">${fmtEur(sL)}</span></div>
       ${familyBig.length ? `<div class="muted-note" style="text-align:left;">Familien-Käufe ≥ 100 € von dir (nicht mitgezählt, ggf. selbst addieren):</div>${listHtml(familyBig)}` : ''}
       <pre class="yaml-box" id="close-yaml">${escapeHtml(yaml)}</pre>
       <button type="button" class="icon-btn copy-btn" id="close-copy-btn" data-label="📋 Für Obsidian kopieren">📋 Für Obsidian kopieren</button>
-      <div class="muted-note" style="text-align:left;">Topf, Bargeld und Kontostand kommen aus der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung, Gastro/Ausgehen, Bargeld, Spenden und Urlaub, plus deine Hälfte der gemeinsamen Anschaffungen.</div>`;
+      <div class="muted-note" style="text-align:left;">Topf und Kontostand kommen aus der Banking-App. Bargeld = Einträge „Bargeld“ (Abhebungen), die du hier erfasst hast; fehlt eine Abhebung, steht sie nur in der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung, Gastro/Ausgehen, Bargeld, Spenden und Urlaub, plus deine Hälfte der gemeinsamen Anschaffungen.</div>`;
     $('close-copy-btn').addEventListener('click', (e) => copyText(yaml, e.currentTarget));
   }
 
