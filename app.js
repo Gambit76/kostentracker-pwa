@@ -246,7 +246,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Nur für die Schnellwahl-Chips: verschiedene Schreibweisen/Läden zu einem Chip zusammenfassen.
   // Schlüssel klein geschrieben, Wert = Anzeigename. Hier nach Belieben erweitern.
   const CHIP_MERGE = {
-    'kraus': 'Bäckerei'
+    'kraus': 'Bäckerei',
+    // Baumarktketten → ein Chip
+    'bauhaus': 'Baumarkt',
+    'obi': 'Baumarkt',
+    'hornbach': 'Baumarkt',
+    'toom': 'Baumarkt',
+    'hagebau': 'Baumarkt',
+    'hellweg': 'Baumarkt',
+    'globus baumarkt': 'Baumarkt',
+    'toom baumarkt': 'Baumarkt'
   };
   const CHIP_HISTORY_SIZE = 100; // so viele letzte Einträge (pro Typ) werden für die Schnellwahl ausgewertet
   const CHIP_COUNT = 10;         // so viele Chips werden daraus gebildet
