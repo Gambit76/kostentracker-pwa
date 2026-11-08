@@ -167,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const DEFAULT_CHIPS = {
     [TYPE_FAMILY]: ['Edeka', 'Rewe', 'Bäckerei', 'Edeka + Bäckerei', 'Kraus', 'Kleidung Kinder', 'Flaschenpost', 'Happycoffee', 'Baumarkt', 'Apotheke'],
-    [TYPE_PERSONAL]: ['Mittagessen', 'Kaffee', 'Tanken', 'Kleidung', 'Sport', 'Bücher', 'Geschenk', 'Parken', 'Friseur', 'Freizeit'],
+    [TYPE_PERSONAL]: ['Mittagessen', 'Café', 'Tanken', 'Kleidung', 'Sport', 'Bücher', 'Geschenk', 'Parken', 'Friseur', 'Freizeit'],
     [TYPE_TRIP]: ['Flug', 'Unterkunft', 'Mietwagen', 'Restaurant', 'Supermarkt', 'Eintritt', 'Ausflug', 'Taxi', 'Parken', 'Souvenirs'],
     [TYPE_SHARED]: ['Möbel', 'TV', 'Elektrogerät', 'Haushaltsgerät', 'Küche', 'Garten', 'Lampe', 'Teppich', 'IKEA', 'Bauhaus']
   };
@@ -180,11 +180,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Reihenfolge zählt: erster Treffer gewinnt.
   const CATEGORY_RULES = [
     ['Kleidung', /kleidung|schuh|sohle|zalando|p&c|peek|h&m|zara|uniqlo|jeans|hose|mantel|jacke|pullover|hemd|shirt|pyjama|socken|gorewear|schiesser|shoppen|shopping/i],
-    ['Lebensmittel', /edeka|rewe|aldi|lidl|kaufland|netto|penny|supermarkt|bäcker|brot|flaschenpost|kraus|hähnchen|metzger|wochenmarkt|einkauf|getränke|obst|gemüse/i],
+    ['Lebensmittel', /edeka|rewe|aldi|lidl|kaufland|netto|penny|supermarkt|bäcker|brot|flaschenpost|kraus|happy ?coffee|kaffeebohnen|bohnen|hähnchen|metzger|wochenmarkt|einkauf|getränke|obst|gemüse/i],
     ['Bargeld', /bargeld|geldautomat|abhebung/i],
     ['Spende', /spende|greenpeace|unicef/i],
     ['Urlaub', /urlaub|\breise\b|hotel|\bflug\b/i],
-    ['Gastro & Ausgehen', /restaurant|mittagessen|abendessen|essen|café|cafe|eiscafé|\beis\b|pizza|mcdonald|imbiss|strandbude|pfannkuchen|kneipe|döner|sushi|burger|stammtisch|ausgehen|feiern|party|bar\b/i],
+    ['Gastro & Ausgehen', /restaurant|mittagessen|abendessen|essen|kaffee|café|cafe|eiscafé|\beis\b|pizza|mcdonald|imbiss|strandbude|pfannkuchen|kneipe|döner|sushi|burger|stammtisch|ausgehen|feiern|party|bar\b/i],
     ['Drogerie & Gesundheit', /\bdm\b|dm kinder|rossmann|drogerie|apotheke|arzt|brille/i]
   ];
 
@@ -247,6 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Schlüssel klein geschrieben, Wert = Anzeigename. Hier nach Belieben erweitern.
   const CHIP_MERGE = {
     'kraus': 'Bäckerei',
+    // "Kaffee" und "Café" = auswärts trinken/essen → ein Chip (Bohnen laufen separat unter Happycoffee/Kaffeebohnen)
+    'kaffee': 'Café',
+    'cafe': 'Café',
     // Baumarktketten → ein Chip
     'bauhaus': 'Baumarkt',
     'obi': 'Baumarkt',
