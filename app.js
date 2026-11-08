@@ -250,6 +250,8 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const CHIP_HISTORY_SIZE = 100; // so viele letzte Einträge (pro Typ) werden für die Schnellwahl ausgewertet
   const CHIP_COUNT = 10;         // so viele Chips werden daraus gebildet
+  const CHIP_MIN_COUNT = 2;      // eine Position muss mind. so oft vorkommen, um ein Chip zu werden
+  const PAYERS = ['Sascha', 'Sonja'];
 
   function normalizePosition(raw) {
     const s = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim();
@@ -405,6 +407,7 @@ document.addEventListener('DOMContentLoaded', () => {
     store.set('kostentracker_payer', payer);
     btnSascha.classList.toggle('active', payer === 'Sascha');
     btnSonja.classList.toggle('active', payer === 'Sonja');
+    renderChips();
     if (document.querySelector('#view-summary.active')) renderSummary();
   }
 
@@ -558,10 +561,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Zählt die Positionen der letzten CHIP_HISTORY_SIZE Einträge eines Typs.
   // Kombinierte Einträge ("Edeka + Bäckerei") zählen für jeden Teil einzeln.
-  function computeChipsFromHistory(type) {
+  // Pro Person (paidBy) und Typ; nur Positionen mit mindestens CHIP_MIN_COUNT Treffern werden Chip.
+  function computeChipsFromHistory(payer, type) {
     const entries = (sheetData && sheetData.entries) || [];
     const sorted = entries
-      .filter(e => e.type === type && e.position)
+      .filter(e => e.type === type && e.paidBy === payer && e.position)
       .sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : 0))
       .slice(0, CHIP_HISTORY_SIZE);
     const counts = new Map();
@@ -572,6 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
     const top = [...counts.entries()]
+      .filter(([, n]) => n >= CHIP_MIN_COUNT)
       .sort((a, b) => b[1] - a[1])
       .slice(0, CHIP_COUNT)
       .map(([pos]) => pos);
@@ -585,10 +590,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const next = {};
     let total = 0;
-    for (const type of ALL_TYPES) {
-      const { top, used } = computeChipsFromHistory(type);
-      total += used;
-      if (top.length >= 3) next[type] = top; // zu wenig Daten → Automatik/Standard beibehalten
+    for (const payer of PAYERS) {
+      next[payer] = {};
+      for (const type of ALL_TYPES) {
+        const { top, used } = computeChipsFromHistory(payer, type);
+        total += used;
+        if (top.length >= 3) next[payer][type] = top; // zu wenig Daten → Automatik/Standard beibehalten
+      }
     }
     chipOverrides = next;
     store.setJSON('kostentracker_chips', chipOverrides);
@@ -597,7 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderChips() {
-    const override = chipOverrides[currentType];
+    const override = (chipOverrides[currentPayer] || {})[currentType];
     let chips = cleanChips(override && override.length ? override : topPositions(currentType, CHIP_COUNT));
     if (chips.length < 6) {
       const extra = cleanChips(DEFAULT_CHIPS[currentType]).filter(c => !chips.some(x => x.toLowerCase() === c.toLowerCase()));
