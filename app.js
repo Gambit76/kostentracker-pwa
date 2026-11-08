@@ -116,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const shareLinkBtn = $('share-link-btn');
   const pasteClipboardBtn = $('paste-clipboard-btn');
   const forceReloadBtn = $('force-reload-btn');
+  const recalcChipsBtn = $('recalc-chips-btn');
 
   // ---------- Storage helpers ----------
   const store = {
@@ -242,6 +243,14 @@ document.addEventListener('DOMContentLoaded', () => {
     'baumarkt': 'Baumarkt', 'kiosk': 'Kiosk'
   };
 
+  // Nur für die Schnellwahl-Chips: verschiedene Schreibweisen/Läden zu einem Chip zusammenfassen.
+  // Schlüssel klein geschrieben, Wert = Anzeigename. Hier nach Belieben erweitern.
+  const CHIP_MERGE = {
+    'kraus': 'Bäckerei'
+  };
+  const CHIP_HISTORY_SIZE = 100; // so viele letzte Einträge (pro Typ) werden für die Schnellwahl ausgewertet
+  const CHIP_COUNT = 10;         // so viele Chips werden daraus gebildet
+
   function normalizePosition(raw) {
     const s = String(raw == null ? '' : raw).replace(/\s+/g, ' ').trim();
     if (!s) return '';
@@ -323,6 +332,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let localTrips = store.getJSON('kostentracker_trips_local', []);
   let offlineQueue = store.getJSON('kostentracker_queue', []);
   let sheetData = store.getJSON('kostentracker_data', null);
+  // Per Button berechnete Schnellwahl: { [Typ]: ['Edeka', 'Bäckerei', ...] } – leer = Automatik aus dem Sheet
+  let chipOverrides = store.getJSON('kostentracker_chips', {});
   let isSyncing = false;
   let isLoadingData = false;
   let lastDataLoad = 0;
@@ -531,11 +542,66 @@ document.addEventListener('DOMContentLoaded', () => {
     return list.slice(0, n).map(s => s.position);
   }
 
+  // Wendet CHIP_MERGE an und entfernt Duplikate (Groß-/Kleinschreibung egal), Reihenfolge bleibt erhalten.
+  function cleanChips(list) {
+    const seen = new Set();
+    const out = [];
+    for (const pos of list) {
+      const merged = CHIP_MERGE[String(pos).toLowerCase()] || pos;
+      const key = merged.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(merged);
+    }
+    return out;
+  }
+
+  // Zählt die Positionen der letzten CHIP_HISTORY_SIZE Einträge eines Typs.
+  // Kombinierte Einträge ("Edeka + Bäckerei") zählen für jeden Teil einzeln.
+  function computeChipsFromHistory(type) {
+    const entries = (sheetData && sheetData.entries) || [];
+    const sorted = entries
+      .filter(e => e.type === type && e.position)
+      .sort((a, b) => (a.iso < b.iso ? 1 : a.iso > b.iso ? -1 : 0))
+      .slice(0, CHIP_HISTORY_SIZE);
+    const counts = new Map();
+    for (const e of sorted) {
+      const parts = normalizePosition(e.position).split(' + ').filter(Boolean);
+      for (const part of cleanChips(parts)) {
+        counts.set(part, (counts.get(part) || 0) + 1);
+      }
+    }
+    const top = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, CHIP_COUNT)
+      .map(([pos]) => pos);
+    return { top, used: sorted.length };
+  }
+
+  function recalcChips() {
+    if (!sheetData || !Array.isArray(sheetData.entries) || !sheetData.entries.length) {
+      showToast('Noch keine Einträge geladen – bitte erst synchronisieren.', '⚠️', 'error');
+      return;
+    }
+    const next = {};
+    let total = 0;
+    for (const type of ALL_TYPES) {
+      const { top, used } = computeChipsFromHistory(type);
+      total += used;
+      if (top.length >= 3) next[type] = top; // zu wenig Daten → Automatik/Standard beibehalten
+    }
+    chipOverrides = next;
+    store.setJSON('kostentracker_chips', chipOverrides);
+    renderChips();
+    showToast(`Schnellwahl aus ${total} Einträgen neu berechnet`, '✅');
+  }
+
   function renderChips() {
-    let chips = topPositions(currentType, 10);
+    const override = chipOverrides[currentType];
+    let chips = cleanChips(override && override.length ? override : topPositions(currentType, CHIP_COUNT));
     if (chips.length < 6) {
-      const extra = DEFAULT_CHIPS[currentType].filter(c => !chips.includes(c));
-      chips = chips.concat(extra).slice(0, 10);
+      const extra = cleanChips(DEFAULT_CHIPS[currentType]).filter(c => !chips.some(x => x.toLowerCase() === c.toLowerCase()));
+      chips = chips.concat(extra).slice(0, CHIP_COUNT);
     }
     const pinned = PINNED_CHIPS[currentType] || [];
     if (pinned.length) {
@@ -1679,6 +1745,10 @@ document.addEventListener('DOMContentLoaded', () => {
         cfgApiUrl.focus();
       }
     });
+  }
+
+  if (recalcChipsBtn) {
+    recalcChipsBtn.addEventListener('click', recalcChips);
   }
 
   if (forceReloadBtn) {
