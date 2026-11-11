@@ -16,10 +16,14 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.6 (November 2026)
+## 🆕 Version 3.7 (November 2026)
+- **Reisen:** Der Ausgleich je Reise kommt aus dem Sheet „Reisen“ (Dashboard Reisen, „Ausgleich offen“) und berücksichtigt damit bereits erstattete Posten. Ohne `REISEN_ID` rechnet die App wie bisher selbst.
+- **Privat-Token optional:** `PRIVATE_TOKEN` leer lassen = der Finanzplan nutzt das normale Token. Sobald eine zweite Person die App nutzt, ein eigenes `PRIVATE_TOKEN` setzen und nur auf dem eigenen Handy eintragen.
+
+## Version 3.6 (November 2026)
 - **Übersicht aufgeräumt:** Monatsabschluss mit den Obsidian-Werten und die Kopierknöpfe („Für Obsidian/Reisenotiz kopieren“) sind entfernt. Neue Reihenfolge: Finanzplan, Familie, Persönlich, gemeinsame Anschaffungen, Reisen, 6-Monats-Trends.
 - **Karte „💶 Finanzplan“ (privat):** Freiraum, Ø Alltag, Topf des Monats (Sparrate, Extra-Einzahlungen, Entnahmen inkl. ungeplant), eigene Ausgaben gegen Ziele, Planrechnung und Saldo gemeinsame Anschaffungen – direkt aus dem Sheet „Finanzplan“.
-- Sichtbar nur mit **Privat-Token** (⚙️, `PRIVATE_TOKEN` in Code.gs). Der Setup-Link für Sonja enthält ihn nicht; ohne Token liefert das Backend keine Finanzplan-Daten.
+- Abgesichert über ein optionales **Privat-Token** (⚙️, `PRIVATE_TOKEN` in Code.gs). Der Setup-Link für Sonja enthält ihn nicht; ohne Token liefert das Backend keine Finanzplan-Daten.
 - Persönliche Kosten zeigen „davon ⭐ Sonderausgaben“.
 
 ### Update von v3.5 auf v3.6

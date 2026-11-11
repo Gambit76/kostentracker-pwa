@@ -1183,7 +1183,7 @@
       </div>
 
       <div class="form-group">
-        <label for="cfg-private-token" class="field-label">Privat-Token (nur dein Handy, für den Finanzplan)</label>
+        <label for="cfg-private-token" class="field-label">Privat-Token (optional, für den Finanzplan)</label>
         <input
           type="password"
           id="cfg-private-token"
@@ -1191,9 +1191,9 @@
           autocapitalize="off"
           autocorrect="off"
           spellcheck="false"
-          placeholder="PRIVATE_TOKEN aus Code.gs – leer lassen bei Sonja">
+          placeholder="nur nötig, wenn PRIVATE_TOKEN in Code.gs gesetzt ist">
         <small style="color: var(--text-subtle); font-size: 0.75rem; margin-top: 4px;">
-          Zeigt in der Übersicht die Karte „Finanzplan“. Wird nie im Setup-Link weitergegeben.
+          Nur nötig, wenn in Code.gs ein eigenes PRIVATE_TOKEN steht. Wird nie im Setup-Link weitergegeben.
         </small>
       </div>
 
@@ -1201,7 +1201,7 @@
       <button type="button" class="btn-secondary" id="recalc-chips-btn">⚡ Schnellwahl neu berechnen (letzte 100 Einträge, je Person)</button>
       <button type="button" class="btn-secondary" id="share-link-btn" style="display: none; border-color: #10b981; color: #34d399;">🔗 Setup-Link für Partnerin kopieren</button>
       <button type="button" class="btn-secondary" id="force-reload-btn" style="color: var(--text-subtle); font-size: 0.75rem; padding: 6px; border: none; background: transparent;">🔄 App-Cache leeren & aktualisieren</button>
-      <div class="muted-note" id="version-note">App-Version 3.6</div>
+      <div class="muted-note" id="version-note">App-Version 3.7</div>
     </div>
     <div class="dialog-footer">
       <button type="button" class="submit-btn" id="save-settings-btn" style="margin-top: 0;">Speichern</button>
@@ -1210,7 +1210,7 @@
 
   <!-- Scripts -->
   <script src="config.js"></script>
-  <script src="app.js?v=3.15"></script>
+  <script src="app.js?v=3.16"></script>
 
 </body>
 </html>

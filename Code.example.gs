@@ -4,6 +4,12 @@
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
  *
+ * Neu in v3.7:
+ *  - Reisen in der App zeigen den offenen Ausgleich aus dem Sheet „Reisen“ (Dashboard Reisen,
+ *    Spalte „Ausgleich offen“), also inkl. bereits erstatteter Posten. Ohne REISEN_ID wie bisher.
+ *  - PRIVATE_TOKEN ist optional: leer lassen = Finanzplan mit dem normalen Token.
+ *    Sobald jemand anderes die App nutzt, ein eigenes PRIVATE_TOKEN setzen.
+ *
  * Neu in v3.6:
  *  - Aktion "plan": liest Saschas privaten Finanzplan (eigenes Google Sheet) und liefert
  *    Freiraum, Topf und Monatswerte an die App (Übersicht → Finanzplan).
@@ -54,8 +60,9 @@
 const CONFIG = {
   SHEET_NAME: "Familie Variable Kosten",
   SECRET_TOKEN: "HIER_TOKEN_EINTRAGEN", // eigenes Token eintragen (identisch mit ⚙️ in der App) – NIE committen
-  PRIVATE_TOKEN: "HIER_PRIVAT_TOKEN_EINTRAGEN", // zweites, eigenes Token nur für den Finanzplan (⚙️ „Privat-Token“ auf Saschas Handy) – NIE committen
+  PRIVATE_TOKEN: "", // optional: eigenes Token nur für den Finanzplan (⚙️ „Privat-Token“). Leer = normales Token gilt. NIE committen
   FINANZPLAN_ID: "HIER_FINANZPLAN_SHEET_ID_EINTRAGEN", // ID aus der URL des Sheets „Finanzplan“
+  REISEN_ID: "HIER_REISEN_SHEET_ID_EINTRAGEN", // ID aus der URL des Sheets „Reisen“ (für den Reise-Ausgleich)
   TYPES: ["Familie", "Persönlich", "Reise", "Anschaffung"],
   DEFAULT_TYPE: "Familie",
   PAYERS: ["Sascha", "Sonja"],
@@ -64,7 +71,7 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.6"
+  VERSION: "3.7"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
@@ -523,6 +530,7 @@ function buildDataResponse() {
     generatedAt: new Date().toISOString(),
     types: CONFIG.TYPES,
     features: FEATURES,
+    tripSettlements: readTripSettlements(),
     totalRows: entries.length,
     recentFrom: recentCutoffIso,
     entries: recent,
@@ -571,8 +579,43 @@ function isAuthorized(token) {
 
 function isPrivateAuthorized(ptoken) {
   const t = String(CONFIG.PRIVATE_TOKEN || "").trim();
-  if (!t || t.indexOf("HIER_") === 0) return false; // ohne eigenes Privat-Token nie freigeben
-  return String(ptoken || "") === t;
+  if (t && t.indexOf("HIER_") !== 0) return String(ptoken || "") === t;
+  // Kein eigenes Privat-Token gesetzt: normales Token genügt (nur, wenn eins gesetzt ist)
+  return isTokenRequired() && isAuthorized(ptoken);
+}
+
+/** Offener Ausgleich je Reise aus „Dashboard Reisen“ (+ = Sonja schuldet Sascha). 5 Min. gecacht. */
+function readTripSettlements() {
+  const id = String(CONFIG.REISEN_ID || "").trim();
+  if (!id || id.indexOf("HIER_") === 0) return null;
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get("trip_settle");
+  if (hit) { try { return JSON.parse(hit); } catch (e) { /* neu lesen */ } }
+  try {
+    const sheet = SpreadsheetApp.openById(id).getSheetByName("Dashboard Reisen");
+    if (!sheet) return null;
+    const vals = sheet.getRange(1, 1, Math.min(sheet.getLastRow(), 80), 6).getValues();
+    let headerRow = -1, colName = 0, colOpen = -1;
+    for (let r = 0; r < vals.length && headerRow < 0; r++) {
+      const row = vals[r].map(function (v) { return String(v || "").toLowerCase(); });
+      if (row[0] === "reise") {
+        for (let c = 0; c < row.length; c++) if (row[c].indexOf("ausgleich offen") === 0) colOpen = c;
+        if (colOpen >= 0) headerRow = r;
+      }
+    }
+    if (headerRow < 0) return null;
+    const out = {};
+    for (let r = headerRow + 1; r < vals.length; r++) {
+      const name = String(vals[r][colName] || "").trim();
+      if (!name) continue;
+      if (name.toLowerCase().indexOf("summe") === 0) break;
+      out[name] = planNum(vals[r][colOpen]);
+    }
+    cache.put("trip_settle", JSON.stringify(out), 300);
+    return out;
+  } catch (err) {
+    return null; // Reise-Ausgleich ist optional – App rechnet dann selbst
+  }
 }
 
 /* ------------------------------------------------------------------ */

@@ -1,6 +1,8 @@
 /**
  * Kostentracker PWA - Client Logic (v3.6)
  *
+ * Neu in v3.7: Reisen zeigen den offenen Ausgleich aus dem Sheet „Reisen“ (inkl. Erstattungen);
+ *   Privat-Token optional (ohne eigenes Token gilt das normale Token, wenn das Backend es erlaubt)
  * Neu in v3.6: Übersicht aufgeräumt – Karte „Finanzplan“ (privat, nur mit Privat-Token),
  *   Monatsabschluss und Obsidian-Kopierknöpfe entfernt
  *
@@ -1425,21 +1427,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Finanzplan (privat, aus dem eigenen Sheet „Finanzplan“) ----------
   function privateToken() { return store.get('kostentracker_private_token', '') || ''; }
   function planEnabled() {
-    return !!privateToken() && !!(sheetData && Array.isArray(sheetData.features) && sheetData.features.includes('plan'));
+    return !!(sheetData && Array.isArray(sheetData.features) && sheetData.features.includes('plan'));
   }
 
   let planAuthWarned = false;
   async function loadPlan() {
     if (!planEnabled() || !navigator.onLine) { renderPlan(); return; }
     try {
-      const result = await apiGet('plan', { ptoken: privateToken() });
+      const result = await apiGet('plan', { ptoken: privateToken() || getApiConfig().secretToken || '' });
       if (result && result.success) {
         planData = result;
         store.setJSON('kostentracker_plan', planData);
       } else if (result && result.code === 'PRIVATE_AUTH') {
         planData = null;
         store.setJSON('kostentracker_plan', null);
-        if (!planAuthWarned) { showToast('Privat-Token passt nicht – Finanzplan bleibt ausgeblendet.', '🔒', 'warning', 4500); planAuthWarned = true; }
+        if (privateToken() && !planAuthWarned) { showToast('Privat-Token passt nicht – Finanzplan bleibt ausgeblendet.', '🔒', 'warning', 4500); planAuthWarned = true; }
       } else if (!handleAuthError(result)) {
         console.warn('Finanzplan nicht geladen:', result && result.error);
       }
@@ -1565,8 +1567,14 @@ document.addEventListener('DOMContentLoaded', () => {
     summaryTrips.innerHTML = trips.slice(0, 4).map((t) => {
       const sa = t.byPayer.Sascha || 0, so = t.byPayer.Sonja || 0;
       const diff = sa - so;
+      const fromSheet = sheetData.tripSettlements && Object.prototype.hasOwnProperty.call(sheetData.tripSettlements, t.name)
+        ? Number(sheetData.tripSettlements[t.name]) || 0 : null;
       let settle;
-      if (Math.abs(diff) < 0.01) settle = '⚖️ <strong>Ausgeglichen</strong>';
+      if (fromSheet !== null) {
+        settle = Math.abs(fromSheet) < 0.01
+          ? '⚖️ <strong>Ausgeglichen</strong> <span style="opacity:0.8;">(laut Sheet Reisen)</span>'
+          : `⚖️ Offen laut Sheet Reisen: <strong>${fromSheet > 0 ? 'Sonja → Sascha' : 'Sascha → Sonja'}: ${fmtEur(Math.abs(fromSheet))}</strong>`;
+      } else if (Math.abs(diff) < 0.01) settle = '⚖️ <strong>Ausgeglichen</strong>';
       else {
         const less = diff > 0 ? 'Sonja' : 'Sascha', more = diff > 0 ? 'Sascha' : 'Sonja';
         settle = `⚖️ 50/50: <strong>${less} → ${more}: ${fmtEur(Math.abs(diff) / 2)}</strong>`;
@@ -1579,7 +1587,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="sum-row" style="font-size:0.85rem;"><span>Sonja bezahlt</span><span class="val">${fmtEur(so)}</span></div>
           <div class="settle trip-settle">${settle}</div>
         </div>`;
-    }).join('') + '<div class="muted-note" style="text-align:left;">Wer was bezahlt hat, laut App. Erstattungen pro Reise im Sheet „Reisen“ (Ausgleich Reisen).</div>';
+    }).join('') + (sheetData.tripSettlements ? '<div class="muted-note" style="text-align:left;">Bezahlt laut App, offener Ausgleich aus dem Sheet „Reisen“ (Erstattungen dort im Tab „Ausgleich Reisen“ abhaken).</div>' : '<div class="muted-note" style="text-align:left;">Rechnerischer 50/50-Ausgleich aus der App, ohne bereits geleistete Erstattungen.</div>');
   }
 
   monthPrev.addEventListener('click', () => { summaryMonth = shiftMonth(summaryMonth || currentMonthKey(), -1); renderSummary(); });
