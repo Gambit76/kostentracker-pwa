@@ -16,7 +16,17 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.3 (Oktober 2026)
+## 🆕 Version 3.5 (November 2026)
+- **Haken „⭐ Sonderausgabe (einmalig)“** bei Typ „Persönlich“ (z. B. Hanteln, Waage, großes Geschenk). Wird in **Spalte I „Sonder“** (Checkbox) gespeichert, auch im Bearbeiten-Dialog änderbar.
+- Der Finanzplan zählt Sonderausgaben nicht zu den Alltagskosten, sondern als eigenen Posten. Im Verlauf erscheinen sie mit „⭐ Sonder“, im Monatsabschluss als eigene Zeile (`sonderausgaben`).
+- Abwärtskompatibel: Der Haken erscheint erst mit Backend v3.5. Ältere App-Versionen lassen einen gesetzten Haken beim Bearbeiten unverändert.
+
+### Update von v3.4 auf v3.5
+1. `Code.example.gs` in den Apps-Script-Editor kopieren, bei `SECRET_TOKEN` dein Token eintragen, speichern.
+2. **Bereitstellen ➔ Bereitstellungen verwalten ➔ Stift ➔ „Neue Version“ ➔ Bereitstellen.**
+3. App schließen und neu öffnen – ⚙️ „Verbindung testen“ meldet „Backend v3.5“, bei „Persönlich“ erscheint der Haken.
+
+## Version 3.3 (Oktober 2026)
 - **Typ „Anschaffung“** (vierter Umschalter, orange) für gemeinsame Anschaffungen wie Möbel, TV oder Haushaltsgeräte. Einmal mit dem Gesamtbetrag erfassen.
 - Zählt **nicht** im monatlichen Familien-Ausgleich und nicht in der Familien-Pivot, wird aber **je 50 %** den Monatskosten von Sascha und Sonja zugerechnet (Übersicht → „Persönliche Kosten“ und „Monatsabschluss“ → `anschaffungen_gemeinsam`).
 - Übersicht: neue Karte „Gemeinsame Anschaffungen“ (Monat, je Person, letzte 12 Monate).

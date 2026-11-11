@@ -1,5 +1,8 @@
 /**
- * Kostentracker PWA - Client Logic (v3.4)
+ * Kostentracker PWA - Client Logic (v3.5)
+ *
+ * Neu in v3.5: Haken "⭐ Sonderausgabe (einmalig)" bei Typ Persönlich (Spalte I im Sheet);
+ *   erscheint erst, wenn das Backend v3.5 läuft (features enthält "special")
  *
  * Neu in v3.4: Euro-Icon; Setup-Link (URL + Token) per Zwischenablage einfügen
  *
@@ -96,6 +99,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const editType = $('edit-type');
   const editComment = $('edit-comment');
   const editTripGroup = $('edit-trip-group');
+  const editSpecialGroup = $('edit-special-group');
+  const editSpecial = $('edit-special');
+  const specialInput = $('special-input');
   const editTrip = $('edit-trip');
   const editTripSelect = $('edit-trip-select');
   const editTypeTripOption = $('edit-type-trip');
@@ -442,6 +448,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function tripsEnabled() { return typeEnabled(TYPE_TRIP); }
   function sharedEnabled() { return typeEnabled(TYPE_SHARED); }
+  // Läuft im Backend schon v3.5 (kennt Spalte I „Sonder“)?
+  function specialEnabled() {
+    return !!(sheetData && Array.isArray(sheetData.features) && sheetData.features.includes('special'));
+  }
 
   function setType(type) {
     let persist = true;
@@ -522,6 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sharedOn = sharedEnabled();
     document.body.classList.toggle('trips-enabled', on);
     document.body.classList.toggle('shared-enabled', sharedOn);
+    document.body.classList.toggle('special-enabled', specialEnabled());
     // Reihenfolge im Bearbeiten-Dialog: Familie, Persönlich, Reise, Anschaffung
     editTypeTripOption.remove();
     editTypeSharedOption.remove();
@@ -831,6 +842,8 @@ document.addEventListener('DOMContentLoaded', () => {
       comment: commentInput.value.trim()
     };
     if (currentType === TYPE_TRIP) payload.trip = trip;
+    const isSpecial = currentType === TYPE_PERSONAL && specialEnabled() && specialInput.checked;
+    if (isSpecial) payload.special = true;
 
     if (!navigator.onLine) {
       queueEntry(payload);
@@ -845,7 +858,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await apiPost(payload);
       if (result && result.success) {
         if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
-        const label = currentType === TYPE_PERSONAL ? 'Persönlich gespeichert'
+        const label = isSpecial ? 'Sonderausgabe gespeichert'
+          : currentType === TYPE_PERSONAL ? 'Persönlich gespeichert'
           : currentType === TYPE_TRIP ? `Reise ${trip}`
           : currentType === TYPE_SHARED ? 'Gemeinsame Anschaffung' : 'Im Sheet gespeichert';
         showToast(`${label}: ${position} ${fmtEur(numericAmount)}`, '✅', 'success');
@@ -938,6 +952,7 @@ document.addEventListener('DOMContentLoaded', () => {
     amountInput.value = '';
     positionInput.value = '';
     commentInput.value = '';
+    specialInput.checked = false;
     commentBox.classList.remove('open');
     commentIcon.textContent = '＋';
     syncChipSelection();
@@ -992,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isTrip = entry.type === TYPE_TRIP;
     const isShared = entry.type === TYPE_SHARED;
     const meta = [entry.paidBy];
-    if (personal) meta.push('Persönlich');
+    if (personal) meta.push(entry.special ? 'Persönlich · ⭐ Sonder' : 'Persönlich');
     if (isTrip) meta.push('✈️ ' + (entry.trip || 'Reise'));
     if (isShared) meta.push('🛋️ Anschaffung (je 50 %)');
     if (entry.comment) meta.push(entry.comment);
@@ -1026,7 +1041,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderHistory() {
     const pending = offlineQueue.map(q => ({
       position: q.position, amount: q.amount, paidBy: q.paidBy, type: q.type || TYPE_FAMILY,
-      trip: q.trip || '', comment: q.comment, iso: germanToIso(q.date), pending: true
+      trip: q.trip || '', comment: q.comment, special: !!q.special, iso: germanToIso(q.date), pending: true
     })).filter(matchesFilter);
 
     if (!sheetData) {
@@ -1106,6 +1121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editType.value = entry.type === TYPE_FAMILY || entry.type === TYPE_PERSONAL || typeEnabled(entry.type)
       ? entry.type : TYPE_FAMILY;
     renderEditTripSelect(entry.trip || '');
+    editSpecial.checked = !!entry.special;
     updateEditTripGroup();
     editComment.value = entry.comment || '';
     editRowNote.textContent = entry.id ? `ID ${entry.id} · Zeile ${entry.row} im Sheet` : `Zeile ${entry.row} im Sheet`;
@@ -1116,6 +1132,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateEditTripGroup() {
     const isTrip = editType.value === TYPE_TRIP;
     editTripGroup.style.display = isTrip ? 'flex' : 'none';
+    editSpecialGroup.style.display = editType.value === TYPE_PERSONAL && specialEnabled() ? 'flex' : 'none';
     if (isTrip && editTripSelect.options.length <= 1) renderEditTripSelect(store.get('kostentracker_trip', '') || '');
   }
   editType.addEventListener('change', updateEditTripGroup);
@@ -1184,6 +1201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         comment: editComment.value.trim()
       };
       if (tripsEnabled()) entryBody.trip = editTripName;
+      if (specialEnabled()) entryBody.special = editType.value === TYPE_PERSONAL && editSpecial.checked;
       const result = await apiPost({
         action: 'update',
         id: editingEntry.id || undefined,
@@ -1424,7 +1442,9 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
     const complete = recentFrom && recentFrom <= `${key}-01`;
 
-    const personal = entries.filter(e => e.type === TYPE_PERSONAL);
+    const personalAll = entries.filter(e => e.type === TYPE_PERSONAL);
+    const sonder = personalAll.filter(e => e.special);
+    const personal = personalAll.filter(e => !e.special);
     const anschaffungen = personal.filter(isAnschaffung);
     const kleidung = personal.filter(e => categoryOf(e) === 'Kleidung');
     const lebensmittel = entries.filter(e => (e.type === TYPE_FAMILY || e.type === TYPE_PERSONAL) && categoryOf(e) === 'Lebensmittel');
@@ -1433,8 +1453,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const sum = (list) => Math.round(list.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100) / 100;
 
     const sShared = Math.round(sum(shared) / 2 * 100) / 100;
-    const sA = sum(anschaffungen), sG = sShared, sK = sum(kleidung), sL = sum(lebensmittel), sB = sum(bargeld);
-    const yaml = `anschaffungen: ${Math.round(sA)}\nanschaffungen_gemeinsam: ${Math.round(sG)}\nkleidung: ${Math.round(sK)}\nbargeld: ${Math.round(sB)}\nlebensmittel: ${Math.round(sL)}`;
+    const sA = sum(anschaffungen), sG = sShared, sK = sum(kleidung), sL = sum(lebensmittel), sB = sum(bargeld), sS = sum(sonder);
+    const yaml = `anschaffungen: ${Math.round(sA)}\nsonderausgaben: ${Math.round(sS)}\nanschaffungen_gemeinsam: ${Math.round(sG)}\nkleidung: ${Math.round(sK)}\nbargeld: ${Math.round(sB)}\nlebensmittel: ${Math.round(sL)}`;
     const listHtml = (list) => list.length
       ? `<div class="close-list">${list.map(e => `<div><span>${escapeHtml(e.date)} · ${escapeHtml(e.position)}</span><span>${fmtEur(e.amount)}</span></div>`).join('')}</div>`
       : '';
@@ -1443,6 +1463,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ${complete ? '' : '<div class="muted-note" style="text-align:left; color:#fbbf24;">⚠️ Für diesen Monat liegen nicht alle Einzelbuchungen in der App vor. Werte sind unvollständig.</div>'}
       <div class="sum-row"><span>Anschaffungen persönlich ≥ 100 €${targetSpan(sA, TARGETS.anschaffungen, TARGETS.anschaffungenMax)}</span><span class="val">${fmtEur(sA)}</span></div>
       ${listHtml(anschaffungen)}
+      ${specialEnabled() || sonder.length ? `<div class="sum-row"><span>⭐ Sonderausgaben (einmalig)</span><span class="val">${fmtEur(sS)}</span></div>${listHtml(sonder)}` : ''}
       <div class="sum-row"><span>Gemeinsame Anschaffungen (dein Anteil ½)</span><span class="val">${fmtEur(sG)}</span></div>
       ${shared.length ? `<div class="close-list">${shared.map(e => `<div><span>${escapeHtml(e.date)} · 🛋️ ${escapeHtml(e.position)} (½ von ${fmtEur(e.amount)})</span><span>${fmtEur(e.amount / 2)}</span></div>`).join('')}</div>` : ''}
       <div class="sum-row"><span>Kleidung</span><span class="val">${fmtEur(sK)}</span></div>

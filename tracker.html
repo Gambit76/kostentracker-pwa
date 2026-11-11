@@ -786,6 +786,18 @@
     .type-toggle .payer-btn.active[data-type="Reise"] .avatar { background: #0ea5e9; }
     .trip-group { display: none; }
     body.mode-trip .trip-group { display: flex; }
+
+    /* ===== v3.5: Sonder-Haken (einmalige persönliche Sonderausgabe) ===== */
+    .special-group { display: none; }
+    body.mode-personal.special-enabled .special-group { display: flex; }
+    .special-check {
+      display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+      background: var(--surface-elevated); border: 1px solid var(--surface-border);
+      border-radius: var(--radius-md); padding: 12px; font-size: 0.9rem; line-height: 1.35;
+    }
+    .special-check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: #8b5cf6; flex-shrink: 0; }
+    .special-check small { display: block; color: var(--text-subtle); font-size: 0.75rem; margin-top: 2px; }
+    #edit-special-group { display: none; }
     .trip-hint { font-size: 0.75rem; color: var(--text-subtle); line-height: 1.4; }
     .entry-item.trip { border-left: 3px solid #0ea5e9; }
     .trip-badge { background: rgba(14, 165, 233, 0.18); color: #7dd3fc; }
@@ -914,6 +926,16 @@
           <select id="trip-select" class="select-input"></select>
           <input type="text" id="trip-new-input" class="text-input" placeholder="JJJJ-MM Name, z. B. 2026-10 Teneriffa" style="display:none;" autocapitalize="words">
           <div class="trip-hint">Alle Kosten der Reise inkl. Flug, Unterkunft und vor Ort. Hat Sonja ihre Hälfte schon erstattet, buche den Betrag geteilt (je die Hälfte Sascha und Sonja).</div>
+        </div>
+
+        <!-- Sonder-Haken (nur bei Typ Persönlich, ab Backend v3.5) -->
+        <div class="form-group special-group">
+          <label class="special-check" for="special-input">
+            <input type="checkbox" id="special-input">
+            <span>⭐ Sonderausgabe (einmalig)
+              <small>z. B. Hanteln, Waage, großes Geschenk – zählt im Finanzplan nicht zu den Alltagskosten</small>
+            </span>
+          </label>
         </div>
 
         <!-- Position / Wo -->
@@ -1100,6 +1122,14 @@
         <select id="edit-trip-select" class="select-input"></select>
         <input type="text" id="edit-trip" class="text-input" placeholder="JJJJ-MM Name, z. B. 2026-10 Teneriffa" style="display:none;" autocapitalize="words">
       </div>
+      <div class="form-group" id="edit-special-group">
+        <label class="special-check" for="edit-special">
+          <input type="checkbox" id="edit-special">
+          <span>⭐ Sonderausgabe (einmalig)
+            <small>zählt im Finanzplan nicht zu den Alltagskosten</small>
+          </span>
+        </label>
+      </div>
       <div class="form-group">
         <label for="edit-comment" class="field-label">Kommentar</label>
         <input type="text" id="edit-comment" class="text-input">
@@ -1157,7 +1187,7 @@
 
   <!-- Scripts -->
   <script src="config.js"></script>
-  <script src="app.js?v=3.13"></script>
+  <script src="app.js?v=3.14"></script>
 
 </body>
 </html>

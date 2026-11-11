@@ -1,8 +1,14 @@
 /**
  * =========================================================================
- * Kostentracker Google Apps Script Backend  (v3.3 – Okt. 2026)
+ * Kostentracker Google Apps Script Backend  (v3.5 – Nov. 2026)
  * Tabellenblatt: "Familie Variable Kosten"
- * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID
+ * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
+ *
+ * Neu in v3.5:
+ *  - Spalte I "Sonder" (Checkbox): einmalige persönliche Sonderausgabe (z. B. Hanteln,
+ *    großes Geschenk). Nur bei Typ "Persönlich" möglich. Der Finanzplan zählt solche
+ *    Einträge nicht in die Alltagskosten, sondern separat als Sonderausgabe.
+ *  - Ältere App-Versionen ohne Sonder-Feld lassen einen gesetzten Haken beim Bearbeiten unverändert.
  *
  * Neu in v3.3:
  *  - Typ "Anschaffung" für gemeinsame Anschaffungen (Möbel, TV, Haushaltsgeräte …):
@@ -49,11 +55,12 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.4"
+  VERSION: "3.5"
 };
 
-const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8 };
-const NUM_COLS = 8;
+const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
+const NUM_COLS = 9;
+const FEATURES = ["special"]; // App blendet den Sonder-Haken nur ein, wenn das Backend ihn kennt
 
 /* ------------------------------------------------------------------ */
 /*  Positions-Vereinheitlichung (identische Logik in app.js)           */
@@ -146,6 +153,12 @@ function normalizeTrip(val) {
   return String(val == null ? "" : val).replace(/\s+/g, " ").trim().slice(0, 80);
 }
 
+function parseBool(val) {
+  if (val === true) return true;
+  const s = String(val == null ? "" : val).trim().toLowerCase();
+  return s === "true" || s === "1" || s === "ja" || s === "x" || s === "wahr";
+}
+
 function normalizePayer(val) {
   const s = String(val || "").trim();
   const hit = CONFIG.PAYERS.filter(function (p) { return p.toLowerCase() === s.toLowerCase(); })[0];
@@ -166,6 +179,7 @@ function doGet(e) {
         sheet: CONFIG.SHEET_NAME,
         version: CONFIG.VERSION,
         types: CONFIG.TYPES,
+        features: FEATURES,
         authRequired: isTokenRequired(),
         authOk: isAuthorized(params.token),
         timestamp: new Date().toISOString()
@@ -241,13 +255,14 @@ function validateEntry(data) {
       paidBy: normalizePayer(data.paidBy),
       comment: String(data.comment || "").trim(),
       type: type,
-      trip: trip
+      trip: trip,
+      special: type === "Persönlich" && parseBool(data.special)
     }
   };
 }
 
 function entryToRow(entry) {
-  return [entry.position, entry.amount, entry.date, entry.paidBy, entry.comment, entry.type, entry.trip || "", entry.id || ""];
+  return [entry.position, entry.amount, entry.date, entry.paidBy, entry.comment, entry.type, entry.trip || "", entry.id || "", !!entry.special];
 }
 
 /* ------------------------------------------------------------------ */
@@ -372,6 +387,10 @@ function handleUpdate(data) {
   if (incoming.trip === undefined && normalizeType(incoming.type) === "Reise") {
     incoming.trip = sheet.getRange(row, COL.TRIP).getValue();
   }
+  // Ältere App-Versionen kennen kein Sonder-Feld: vorhandenen Haken beibehalten
+  if (incoming.special === undefined) {
+    incoming.special = sheet.getRange(row, COL.SPECIAL).getValue();
+  }
   const v = validateEntry(incoming);
   if (v.error) return { success: false, error: v.error };
   v.entry.id = target.id || nextId(sheet);
@@ -423,7 +442,8 @@ function buildDataResponse() {
       comment: String(r[4] || "").trim(),
       type: type,
       trip: type === "Reise" ? normalizeTrip(r[6]) : "",
-      id: parseId(r[COL.ID - 1]) || null
+      id: parseId(r[COL.ID - 1]) || null,
+      special: type === "Persönlich" && parseBool(r[COL.SPECIAL - 1])
     };
     entries.push(serializeEntry(entry, i + 2, tz));
 
@@ -487,6 +507,7 @@ function buildDataResponse() {
     version: CONFIG.VERSION,
     generatedAt: new Date().toISOString(),
     types: CONFIG.TYPES,
+    features: FEATURES,
     totalRows: entries.length,
     recentFrom: recentCutoffIso,
     entries: recent,
@@ -514,7 +535,8 @@ function serializeEntry(entry, row, tz) {
     paidBy: entry.paidBy,
     comment: entry.comment,
     type: entry.type,
-    trip: entry.trip || ""
+    trip: entry.trip || "",
+    special: !!entry.special
   };
 }
 
