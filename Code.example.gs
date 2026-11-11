@@ -4,6 +4,13 @@
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
  *
+ * Neu in v3.6:
+ *  - Aktion "plan": liest Saschas privaten Finanzplan (eigenes Google Sheet) und liefert
+ *    Freiraum, Topf und Monatswerte an die App (Übersicht → Finanzplan).
+ *    Nur mit zusätzlichem PRIVATE_TOKEN – den bekommt nur Saschas Handy, nicht der Setup-Link.
+ *  - Nach dem Einfügen einmal im Editor "testFinanzplan" ausführen und den Zugriff
+ *    auf das Finanzplan-Sheet erlauben.
+ *
  * Neu in v3.5:
  *  - Spalte I "Sonder" (Checkbox): einmalige persönliche Sonderausgabe (z. B. Hanteln,
  *    großes Geschenk). Nur bei Typ "Persönlich" möglich. Der Finanzplan zählt solche
@@ -47,6 +54,8 @@
 const CONFIG = {
   SHEET_NAME: "Familie Variable Kosten",
   SECRET_TOKEN: "HIER_TOKEN_EINTRAGEN", // eigenes Token eintragen (identisch mit ⚙️ in der App) – NIE committen
+  PRIVATE_TOKEN: "HIER_PRIVAT_TOKEN_EINTRAGEN", // zweites, eigenes Token nur für den Finanzplan (⚙️ „Privat-Token“ auf Saschas Handy) – NIE committen
+  FINANZPLAN_ID: "HIER_FINANZPLAN_SHEET_ID_EINTRAGEN", // ID aus der URL des Sheets „Finanzplan“
   TYPES: ["Familie", "Persönlich", "Reise", "Anschaffung"],
   DEFAULT_TYPE: "Familie",
   PAYERS: ["Sascha", "Sonja"],
@@ -55,12 +64,12 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.5"
+  VERSION: "3.6"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
 const NUM_COLS = 9;
-const FEATURES = ["special"]; // App blendet den Sonder-Haken nur ein, wenn das Backend ihn kennt
+const FEATURES = ["special", "plan"]; // App blendet den Sonder-Haken nur ein, wenn das Backend ihn kennt
 
 /* ------------------------------------------------------------------ */
 /*  Positions-Vereinheitlichung (identische Logik in app.js)           */
@@ -195,6 +204,12 @@ function doGet(e) {
         try { ensureIds(getSheet()); } finally { lock.releaseLock(); }
       }
       return createJsonResponse(buildDataResponse());
+    }
+    if (action === "plan") {
+      if (!isPrivateAuthorized(params.ptoken)) {
+        return createJsonResponse({ success: false, error: "Privat-Token fehlt oder ist falsch.", code: "PRIVATE_AUTH" });
+      }
+      return createJsonResponse(buildPlanResponse());
     }
     return createJsonResponse({ success: false, error: "Unbekannte Aktion: " + action });
   } catch (err) {
@@ -554,6 +569,128 @@ function isAuthorized(token) {
   return String(token || "") === CONFIG.SECRET_TOKEN;
 }
 
+function isPrivateAuthorized(ptoken) {
+  const t = String(CONFIG.PRIVATE_TOKEN || "").trim();
+  if (!t || t.indexOf("HIER_") === 0) return false; // ohne eigenes Privat-Token nie freigeben
+  return String(ptoken || "") === t;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Finanzplan (privates Sheet, nur mit PRIVATE_TOKEN)                 */
+/* ------------------------------------------------------------------ */
+function planNum(v) {
+  if (typeof v === "number") return round2(v);
+  const n = parseAmount(v);
+  return isNaN(n) ? 0 : n;
+}
+
+/** Sucht in einer Spalte die erste Zeile, deren Text mit einem der Präfixe beginnt, und liefert den Wert daneben. */
+function findByLabel(values, labelCol, valueCol, prefixes) {
+  for (let i = 0; i < values.length; i++) {
+    const label = String(values[i][labelCol] || "").replace(/^[−\-\s]+/, "").trim().toLowerCase();
+    for (let j = 0; j < prefixes.length; j++) {
+      if (label.indexOf(prefixes[j].toLowerCase()) === 0) return planNum(values[i][valueCol]);
+    }
+  }
+  return null;
+}
+
+function buildPlanResponse() {
+  const ss = SpreadsheetApp.openById(CONFIG.FINANZPLAN_ID);
+  const tz = ss.getSpreadsheetTimeZone();
+  const sh = function (name) {
+    const x = ss.getSheetByName(name);
+    if (!x) throw new Error('Blatt "' + name + '" im Finanzplan nicht gefunden.');
+    return x;
+  };
+
+  // Monatswerte – Spalten über die Überschriften in Zeile 5 finden (robust gegen neue Spalten)
+  const mSheet = sh("Monate");
+  const mVals = mSheet.getRange(5, 1, Math.max(mSheet.getLastRow() - 4, 1), mSheet.getLastColumn()).getValues();
+  const head = mVals[0].map(function (h) { return String(h || "").toLowerCase(); });
+  const col = function (prefix) {
+    for (let i = 0; i < head.length; i++) if (head[i].indexOf(prefix) === 0) return i;
+    return -1;
+  };
+  const C = {
+    sparrate: col("topf einzahlung"), entnahmen: col("entnahmen gesamt"), ungeplant: col("davon ungeplant"),
+    netto: col("netto im topf"), topf: col("topf-stand"), sonstige: col("sonstige anschaffungen"),
+    gemeinsam: col("gem. anschaffungen"), kleidung: col("kleidung"), bargeld: col("bargeld"),
+    lebensmittel: col("lebensmittel"), etf: col("etf"), extra: col("extra-einzahlungen"),
+    herkunft: col("herkunft"), sonder: col("sonderausgaben")
+  };
+  const now = new Date();
+  const nowKey = Utilities.formatDate(now, tz, "yyyy-MM");
+  const months = [];
+  for (let r = 1; r < mVals.length; r++) {
+    const a = mVals[r][0];
+    let key = "";
+    if (Object.prototype.toString.call(a) === "[object Date]" && !isNaN(a)) key = Utilities.formatDate(a, tz, "yyyy-MM");
+    else if (/^\d{4}-\d{2}$/.test(String(a).trim())) key = String(a).trim();
+    if (!key || key > nowKey) continue;
+    const g = function (k) { return C[k] >= 0 ? mVals[r][C[k]] : ""; };
+    const sparrateRaw = g("sparrate");
+    months.push({
+      month: key,
+      sparrate: planNum(sparrateRaw),
+      hasSparrate: sparrateRaw !== "" && sparrateRaw !== null,
+      extra: planNum(g("extra")), herkunft: String(g("herkunft") || ""),
+      entnahmen: planNum(g("entnahmen")), ungeplant: planNum(g("ungeplant")),
+      netto: planNum(g("netto")), topf: g("topf") === "" ? null : planNum(g("topf")),
+      sonstige: planNum(g("sonstige")), sonder: planNum(g("sonder")), gemeinsam: planNum(g("gemeinsam")),
+      kleidung: planNum(g("kleidung")), bargeld: planNum(g("bargeld")),
+      lebensmittel: planNum(g("lebensmittel")), etf: planNum(g("etf"))
+    });
+  }
+
+  // Monatsbilanz und Topf-Block aus der Fixkostenübersicht (über die Beschriftungen)
+  const fx = sh("Sascha Monats-Fixkostenübersicht").getRange(1, 1, 16, 7).getValues();
+  const plan = {
+    netto: findByLabel(fx, 0, 1, ["Nettogehalt"]),
+    kindergeld: findByLabel(fx, 0, 1, ["Kindergeld"]),
+    fixkosten: findByLabel(fx, 0, 1, ["Laufende Fixkosten"]),
+    familie: findByLabel(fx, 0, 1, ["Variable Familienkosten"]),
+    alltag: findByLabel(fx, 0, 1, ["Ø persönliche Alltagskosten", "Ø persönliche variable"]),
+    freiraum: findByLabel(fx, 0, 1, ["Freiraum pro Monat"]),
+    sonderSchnitt: findByLabel(fx, 0, 1, ["Zum Vergleich"]),
+    ruecklage: findByLabel(fx, 3, 6, ["Rücklage pro Monat"]),
+    sparrate: findByLabel(fx, 3, 6, ["Sparrate Topf"]),
+    reisebudget: findByLabel(fx, 3, 6, ["Reisebudget"]),
+    topfRest: findByLabel(fx, 3, 6, ["Topf-Rest für Anschaffungen"])
+  };
+
+  const ein = sh("Einstellungen").getRange(1, 1, 20, 2).getValues();
+  const targets = {
+    sonstige: findByLabel(ein, 0, 1, ["Budget sonstige"]),
+    sonstigeMax: findByLabel(ein, 0, 1, ["Obergrenze sonstige"]),
+    lebensmittel: findByLabel(ein, 0, 1, ["Ziel Lebensmittel"]),
+    bargeld: findByLabel(ein, 0, 1, ["Ziel Bargeld"])
+  };
+
+  // Topf-Entnahmen der letzten 12 Monate
+  const eSheet = sh("Entnahmen");
+  const eLast = eSheet.getLastRow();
+  const withdrawals = [];
+  if (eLast >= 5) {
+    const cutoff = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    eSheet.getRange(5, 1, eLast - 4, 5).getValues().forEach(function (r) {
+      const d = parseDateInput(r[0]);
+      const amt = planNum(r[1]);
+      if (!d || !amt || d < cutoff) return;
+      withdrawals.push({
+        iso: Utilities.formatDate(d, tz, "yyyy-MM-dd"), date: Utilities.formatDate(d, tz, "dd.MM.yyyy"),
+        amount: amt, purpose: String(r[2] || ""), planned: String(r[3] || "").toLowerCase() !== "nein", ref: String(r[4] || "")
+      });
+    });
+    withdrawals.sort(function (a, b) { return a.iso < b.iso ? 1 : -1; });
+  }
+
+  const saldoSonja = planNum(sh("Gemeinsame Anschaffungen").getRange("B3").getValue());
+
+  return { success: true, version: CONFIG.VERSION, generatedAt: new Date().toISOString(),
+    months: months, plan: plan, targets: targets, withdrawals: withdrawals, saldoSonja: saldoSonja };
+}
+
 function getSheet() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_NAME);
@@ -565,6 +702,18 @@ function createJsonResponse(obj) {
   const output = ContentService.createTextOutput(JSON.stringify(obj));
   output.setMimeType(ContentService.MimeType.JSON);
   return output;
+}
+
+/**
+ * Einmal im Apps-Script-Editor ausführen: erlaubt den Zugriff auf das Finanzplan-Sheet
+ * und zeigt, ob alle Werte gefunden werden. Liest nur, schreibt nichts.
+ */
+function testFinanzplan() {
+  const res = buildPlanResponse();
+  Logger.log("Monate: " + res.months.map(function (m) { return m.month; }).join(", "));
+  Logger.log("Plan: " + JSON.stringify(res.plan));
+  Logger.log("Ziele: " + JSON.stringify(res.targets));
+  Logger.log("Entnahmen (12 Mon.): " + res.withdrawals.length + " · Saldo Sonja: " + res.saldoSonja);
 }
 
 /**

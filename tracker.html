@@ -798,6 +798,14 @@
     .special-check input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: #8b5cf6; flex-shrink: 0; }
     .special-check small { display: block; color: var(--text-subtle); font-size: 0.75rem; margin-top: 2px; }
     #edit-special-group { display: none; }
+
+    /* ===== v3.6: Finanzplan in der Übersicht ===== */
+    .plan-section { display: flex; flex-direction: column; gap: 6px; }
+    .plan-section h4 { margin: 4px 0 0; font-size: 0.72rem; color: var(--text-subtle); text-transform: uppercase; letter-spacing: 0.05em; }
+    .plan-section .sum-row { font-size: 0.9rem; }
+    .plan-status { font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
+    .plan-status.ok { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .plan-status.bad { background: rgba(248, 113, 113, 0.15); color: #f87171; }
     .trip-hint { font-size: 0.75rem; color: var(--text-subtle); line-height: 1.4; }
     .entry-item.trip { border-left: 3px solid #0ea5e9; }
     .trip-badge { background: rgba(14, 165, 233, 0.18); color: #7dd3fc; }
@@ -1025,14 +1033,14 @@
         </div>
       </section>
 
-      <section class="card">
-        <div class="card-title"><span>👨‍👩‍👧‍👦 Familienkosten (variabel)</span></div>
-        <div id="summary-family"></div>
+      <section class="card" id="plan-card" style="display:none;">
+        <div class="card-title"><span>💶 Finanzplan <span class="type-badge">privat</span></span></div>
+        <div id="summary-plan" style="display:flex; flex-direction:column; gap:10px;"></div>
       </section>
 
       <section class="card">
-        <div class="card-title"><span>📈 Kleinausgaben Familie · 6 Monate</span></div>
-        <div id="summary-small" style="display:flex; flex-direction:column; gap:12px;"></div>
+        <div class="card-title"><span>👨‍👩‍👧‍👦 Familienkosten (variabel)</span></div>
+        <div id="summary-family"></div>
       </section>
 
       <section class="card">
@@ -1040,9 +1048,9 @@
         <div id="summary-personal"></div>
       </section>
 
-      <section class="card" id="close-card">
-        <div class="card-title"><span>🗓️ Monatsabschluss <span id="close-person"></span></span></div>
-        <div id="summary-close"></div>
+      <section class="card" id="shared-card" style="display:none;">
+        <div class="card-title"><span>🛋️ Gemeinsame Anschaffungen</span></div>
+        <div id="summary-shared" style="display:flex; flex-direction:column; gap:10px;"></div>
       </section>
 
       <section class="card" id="trips-card" style="display:none;">
@@ -1050,9 +1058,9 @@
         <div id="summary-trips" style="display:flex; flex-direction:column; gap:10px;"></div>
       </section>
 
-      <section class="card" id="shared-card" style="display:none;">
-        <div class="card-title"><span>🛋️ Gemeinsame Anschaffungen</span></div>
-        <div id="summary-shared" style="display:flex; flex-direction:column; gap:10px;"></div>
+      <section class="card">
+        <div class="card-title"><span>📈 Kleinausgaben Familie · 6 Monate</span></div>
+        <div id="summary-small" style="display:flex; flex-direction:column; gap:12px;"></div>
       </section>
 
       <section class="card">
@@ -1174,11 +1182,26 @@
           placeholder="Token aus Code.gs (SECRET_TOKEN)">
       </div>
 
+      <div class="form-group">
+        <label for="cfg-private-token" class="field-label">Privat-Token (nur dein Handy, für den Finanzplan)</label>
+        <input
+          type="password"
+          id="cfg-private-token"
+          class="text-input"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="PRIVATE_TOKEN aus Code.gs – leer lassen bei Sonja">
+        <small style="color: var(--text-subtle); font-size: 0.75rem; margin-top: 4px;">
+          Zeigt in der Übersicht die Karte „Finanzplan“. Wird nie im Setup-Link weitergegeben.
+        </small>
+      </div>
+
       <button type="button" class="btn-secondary" id="test-connection-btn">Verbindung testen</button>
       <button type="button" class="btn-secondary" id="recalc-chips-btn">⚡ Schnellwahl neu berechnen (letzte 100 Einträge, je Person)</button>
       <button type="button" class="btn-secondary" id="share-link-btn" style="display: none; border-color: #10b981; color: #34d399;">🔗 Setup-Link für Partnerin kopieren</button>
       <button type="button" class="btn-secondary" id="force-reload-btn" style="color: var(--text-subtle); font-size: 0.75rem; padding: 6px; border: none; background: transparent;">🔄 App-Cache leeren & aktualisieren</button>
-      <div class="muted-note" id="version-note">App-Version 3.13</div>
+      <div class="muted-note" id="version-note">App-Version 3.6</div>
     </div>
     <div class="dialog-footer">
       <button type="button" class="submit-btn" id="save-settings-btn" style="margin-top: 0;">Speichern</button>
@@ -1187,7 +1210,7 @@
 
   <!-- Scripts -->
   <script src="config.js"></script>
-  <script src="app.js?v=3.14"></script>
+  <script src="app.js?v=3.15"></script>
 
 </body>
 </html>

@@ -16,7 +16,19 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.5 (November 2026)
+## 🆕 Version 3.6 (November 2026)
+- **Übersicht aufgeräumt:** Monatsabschluss mit den Obsidian-Werten und die Kopierknöpfe („Für Obsidian/Reisenotiz kopieren“) sind entfernt. Neue Reihenfolge: Finanzplan, Familie, Persönlich, gemeinsame Anschaffungen, Reisen, 6-Monats-Trends.
+- **Karte „💶 Finanzplan“ (privat):** Freiraum, Ø Alltag, Topf des Monats (Sparrate, Extra-Einzahlungen, Entnahmen inkl. ungeplant), eigene Ausgaben gegen Ziele, Planrechnung und Saldo gemeinsame Anschaffungen – direkt aus dem Sheet „Finanzplan“.
+- Sichtbar nur mit **Privat-Token** (⚙️, `PRIVATE_TOKEN` in Code.gs). Der Setup-Link für Sonja enthält ihn nicht; ohne Token liefert das Backend keine Finanzplan-Daten.
+- Persönliche Kosten zeigen „davon ⭐ Sonderausgaben“.
+
+### Update von v3.5 auf v3.6
+1. `Code.example.gs` einfügen, `SECRET_TOKEN`, `PRIVATE_TOKEN` (frei wählbar) und `FINANZPLAN_ID` eintragen, speichern.
+2. Im Editor einmal **`testFinanzplan`** ausführen und den Zugriff auf das Finanzplan-Sheet erlauben.
+3. **Bereitstellen ➔ Bereitstellungen verwalten ➔ Stift ➔ „Neue Version“ ➔ Bereitstellen.**
+4. App neu öffnen, ⚙️ → Privat-Token eintragen → Speichern.
+
+## Version 3.5 (November 2026)
 - **Haken „⭐ Sonderausgabe (einmalig)“** bei Typ „Persönlich“ (z. B. Hanteln, Waage, großes Geschenk). Wird in **Spalte I „Sonder“** (Checkbox) gespeichert, auch im Bearbeiten-Dialog änderbar.
 - Der Finanzplan zählt Sonderausgaben nicht zu den Alltagskosten, sondern als eigenen Posten. Im Verlauf erscheinen sie mit „⭐ Sonder“, im Monatsabschluss als eigene Zeile (`sonderausgaben`).
 - Abwärtskompatibel: Der Haken erscheint erst mit Backend v3.5. Ältere App-Versionen lassen einen gesetzten Haken beim Bearbeiten unverändert.

@@ -1,5 +1,8 @@
 /**
- * Kostentracker PWA - Client Logic (v3.5)
+ * Kostentracker PWA - Client Logic (v3.6)
+ *
+ * Neu in v3.6: Übersicht aufgeräumt – Karte „Finanzplan“ (privat, nur mit Privat-Token),
+ *   Monatsabschluss und Obsidian-Kopierknöpfe entfernt
  *
  * Neu in v3.5: Haken "⭐ Sonderausgabe (einmalig)" bei Typ Persönlich (Spalte I im Sheet);
  *   erscheint erst, wenn das Backend v3.5 läuft (features enthält "special")
@@ -83,8 +86,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const summaryTrend = $('summary-trend');
   const summarySmall = $('summary-small');
   const summaryNote = $('summary-note');
-  const summaryClose = $('summary-close');
-  const closePerson = $('close-person');
+  const planCard = $('plan-card');
+  const summaryPlan = $('summary-plan');
   const tripsCard = $('trips-card');
   const summaryTrips = $('summary-trips');
   const sharedCard = $('shared-card');
@@ -119,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const testConnectionBtn = $('test-connection-btn');
   const cfgApiUrl = $('cfg-api-url');
   const cfgSecretToken = $('cfg-secret-token');
+  const cfgPrivateToken = $('cfg-private-token');
   const shareLinkBtn = $('share-link-btn');
   const pasteClipboardBtn = $('paste-clipboard-btn');
   const forceReloadBtn = $('force-reload-btn');
@@ -352,6 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let localTrips = store.getJSON('kostentracker_trips_local', []);
   let offlineQueue = store.getJSON('kostentracker_queue', []);
   let sheetData = store.getJSON('kostentracker_data', null);
+  let planData = store.getJSON('kostentracker_plan', null);
   // Per Button berechnete Schnellwahl: { [Typ]: ['Edeka', 'Bäckerei', ...] } – leer = Automatik aus dem Sheet
   let chipOverrides = store.getJSON('kostentracker_chips', {});
   let isSyncing = false;
@@ -733,6 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastDataLoad = Date.now();
         store.setJSON('kostentracker_data', sheetData);
         renderAll();
+        loadPlan();
       } else if (!handleAuthError(result)) {
         const msg = result && result.error ? result.error : 'Unbekannte Antwort';
         // Ältere Code.gs-Version kennt "data" noch nicht
@@ -1410,71 +1416,109 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="muted-note" style="text-align:left;">Ø je Art: ${TOTAL_PARTS.map((p, i) => `${p.label} ${fmtEur(avgParts[i])}`).join(' · ')}. Alle Einträge im Sheet, Sascha und Sonja zusammen. Reisen zählen im Monat der Buchung.</div>`;
   }
 
-  // ---------- Monatsabschluss (Werte für die Obsidian-Monatsnotiz) ----------
-  const TARGETS = { anschaffungen: 250, anschaffungenMax: 400, lebensmittel: 850, bargeld: 150 };
-
-  async function copyText(text, btn) {
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('Kopiert – in Obsidian bei den Properties einfügen.', '📋');
-    } catch (e) {
-      prompt('Zum Kopieren markieren:', text);
-    }
-    if (btn) { btn.textContent = '✓ Kopiert'; setTimeout(() => { btn.textContent = btn.dataset.label; }, 2000); }
-  }
-
   function targetSpan(val, target, max) {
     if (!target) return '';
     const cls = val <= target ? 'target-ok' : (max && val <= max ? '' : 'target-bad');
     return ` <span class="${cls}" style="font-size:0.75rem;">(Ziel ≤ ${fmtEur(target)}${max ? `, max. ${fmtEur(max)}` : ''})</span>`;
   }
 
-  function renderClose() {
-    const person = currentPayer;
-    closePerson.textContent = `· ${person}`;
-    const key = summaryMonth;
-    const monthEntries = (sheetData.entries || []).filter(e => e.iso && e.iso.slice(0, 7) === key);
-    const entries = monthEntries.filter(e => e.paidBy === person);
-    const shared = monthEntries.filter(e => e.type === TYPE_SHARED);
-    const recentFrom = sheetData.recentFrom || (() => {
-      const isos = (sheetData.entries || []).map(e => e.iso).filter(Boolean).sort();
-      return isos[0] || '';
-    })();
-    const complete = recentFrom && recentFrom <= `${key}-01`;
+  // ---------- Finanzplan (privat, aus dem eigenen Sheet „Finanzplan“) ----------
+  function privateToken() { return store.get('kostentracker_private_token', '') || ''; }
+  function planEnabled() {
+    return !!privateToken() && !!(sheetData && Array.isArray(sheetData.features) && sheetData.features.includes('plan'));
+  }
 
-    const personalAll = entries.filter(e => e.type === TYPE_PERSONAL);
-    const sonder = personalAll.filter(e => e.special);
-    const personal = personalAll.filter(e => !e.special);
-    const anschaffungen = personal.filter(isAnschaffung);
-    const kleidung = personal.filter(e => categoryOf(e) === 'Kleidung');
-    const lebensmittel = entries.filter(e => (e.type === TYPE_FAMILY || e.type === TYPE_PERSONAL) && categoryOf(e) === 'Lebensmittel');
-    const bargeld = entries.filter(e => (e.type === TYPE_FAMILY || e.type === TYPE_PERSONAL) && categoryOf(e) === 'Bargeld');
-    const familyBig = entries.filter(e => e.type === TYPE_FAMILY && isAnschaffung(e));
-    const sum = (list) => Math.round(list.reduce((s, e) => s + (Number(e.amount) || 0), 0) * 100) / 100;
+  let planAuthWarned = false;
+  async function loadPlan() {
+    if (!planEnabled() || !navigator.onLine) { renderPlan(); return; }
+    try {
+      const result = await apiGet('plan', { ptoken: privateToken() });
+      if (result && result.success) {
+        planData = result;
+        store.setJSON('kostentracker_plan', planData);
+      } else if (result && result.code === 'PRIVATE_AUTH') {
+        planData = null;
+        store.setJSON('kostentracker_plan', null);
+        if (!planAuthWarned) { showToast('Privat-Token passt nicht – Finanzplan bleibt ausgeblendet.', '🔒', 'warning', 4500); planAuthWarned = true; }
+      } else if (!handleAuthError(result)) {
+        console.warn('Finanzplan nicht geladen:', result && result.error);
+      }
+    } catch (err) {
+      console.warn('Finanzplan laden fehlgeschlagen:', err);
+    }
+    renderPlan();
+  }
 
-    const sShared = Math.round(sum(shared) / 2 * 100) / 100;
-    const sA = sum(anschaffungen), sG = sShared, sK = sum(kleidung), sL = sum(lebensmittel), sB = sum(bargeld), sS = sum(sonder);
-    const yaml = `anschaffungen: ${Math.round(sA)}\nsonderausgaben: ${Math.round(sS)}\nanschaffungen_gemeinsam: ${Math.round(sG)}\nkleidung: ${Math.round(sK)}\nbargeld: ${Math.round(sB)}\nlebensmittel: ${Math.round(sL)}`;
-    const listHtml = (list) => list.length
-      ? `<div class="close-list">${list.map(e => `<div><span>${escapeHtml(e.date)} · ${escapeHtml(e.position)}</span><span>${fmtEur(e.amount)}</span></div>`).join('')}</div>`
+  function renderPlan() {
+    const show = planEnabled() && planData && planData.success;
+    planCard.style.display = show ? 'flex' : 'none';
+    if (!show) { summaryPlan.innerHTML = ''; return; }
+    const p = planData.plan || {};
+    const t = planData.targets || {};
+    const m = (planData.months || []).find(x => x.month === summaryMonth);
+    const eur = (v) => (v === null || v === undefined ? '–' : fmtEur(v));
+    const row = (label, val, extra = '') => `<div class="sum-row"><span>${label}${extra}</span><span class="val">${eur(val)}</span></div>`;
+
+    const kpis = `
+      <div class="small-kpis">
+        <div class="small-kpi"><div class="k">Freiraum / Monat</div><div class="v ${p.freiraum < 0 ? 'target-bad' : 'target-ok'}">${eur(p.freiraum)}</div></div>
+        <div class="small-kpi"><div class="k">Ø Alltag persönlich</div><div class="v">${eur(p.alltag)}</div></div>
+        <div class="small-kpi"><div class="k">Topf Monatsende</div><div class="v">${m && m.topf !== null ? eur(m.topf) : '–'}</div></div>
+      </div>`;
+
+    let monthHtml;
+    if (!m) {
+      monthHtml = '<div class="muted-note" style="text-align:left;">Für diesen Monat stehen noch keine Werte im Finanzplan.</div>';
+    } else {
+      const ok = m.netto >= 0;
+      const wd = (planData.withdrawals || []).filter(w => w.iso.slice(0, 7) === summaryMonth);
+      const wdList = wd.length
+        ? `<div class="close-list">${wd.map(w => `<div><span>${escapeHtml(w.date)} · ${escapeHtml(w.purpose || 'Entnahme')}${w.planned ? '' : ' · ungeplant'}</span><span>${fmtEur(w.amount)}</span></div>`).join('')}</div>`
+        : '';
+      monthHtml = `
+        <div class="plan-section">
+          <h4>Topf · ${escapeHtml(monthName(summaryMonth))}</h4>
+          ${row('Sparrate', m.sparrate)}
+          ${m.extra ? row('＋ Extra-Einzahlungen', m.extra, m.herkunft ? ` <span class="muted-note">(${escapeHtml(m.herkunft)})</span>` : '') : ''}
+          ${row('− Entnahmen', m.entnahmen, m.ungeplant ? ` <span class="target-bad" style="font-size:0.75rem;">(davon ungeplant ${fmtEur(m.ungeplant)})</span>` : '')}
+          ${wdList}
+          <div class="sum-row total"><span>Netto im Topf <span class="plan-status ${ok ? 'ok' : 'bad'}">${ok ? 'stabil' : 'schrumpft'}</span></span><span class="val">${eur(m.netto)}</span></div>
+        </div>
+        <div class="plan-section">
+          <h4>Deine Ausgaben im Monat</h4>
+          ${row('Sonstige Anschaffungen', m.sonstige, targetSpan(m.sonstige, t.sonstige, t.sonstigeMax))}
+          ${row('⭐ Sonderausgaben', m.sonder)}
+          ${row('Kleidung', m.kleidung)}
+          ${row('Bargeld', m.bargeld, targetSpan(m.bargeld, t.bargeld))}
+          ${row('½ gemeinsame Anschaffungen', m.gemeinsam)}
+          ${row('Lebensmittel (von dir bezahlt)', m.lebensmittel, targetSpan(m.lebensmittel, t.lebensmittel))}
+          ${row('ETF inkl. Noah', m.etf)}
+        </div>`;
+    }
+
+    const calc = `
+      <div class="plan-section">
+        <h4>Planrechnung pro Monat</h4>
+        ${row('Gehalt + Kindergeld', (p.netto || 0) + (p.kindergeld || 0))}
+        ${row('− Laufende Fixkosten & Sparen', p.fixkosten)}
+        ${row('− Ø Familie variabel (von dir)', p.familie)}
+        ${row('− Ø Alltag persönlich', p.alltag)}
+        <div class="sum-row total"><span>Freiraum für Sonderausgaben & Anschaffungen</span><span class="val">${eur(p.freiraum)}</span></div>
+        ${p.sonderSchnitt !== null && p.sonderSchnitt !== undefined ? `<div class="muted-note" style="text-align:left;">Zum Vergleich: Ø Sonderausgaben + ½ Anschaffungen der letzten 3 Monate ${fmtEur(p.sonderSchnitt)}.</div>` : ''}
+        <h4>Topf (Sparrate)</h4>
+        ${row('Sparrate', p.sparrate)}
+        ${row('− Rücklage Sonderzahlungen', p.ruecklage)}
+        ${row('− Reisebudget (dein Anteil)', p.reisebudget)}
+        <div class="sum-row total"><span>Rest für Anschaffungen & Extras</span><span class="val">${eur(p.topfRest)}</span></div>
+      </div>`;
+
+    const saldo = planData.saldoSonja || 0;
+    const saldoHtml = Math.abs(saldo) >= 0.01
+      ? `<div class="settle">🛋️ Gemeinsame Anschaffungen: <strong>${saldo > 0 ? 'Sonja → Sascha' : 'Sascha → Sonja'}: ${fmtEur(Math.abs(saldo))}</strong> offen</div>`
       : '';
-
-    summaryClose.innerHTML = `
-      ${complete ? '' : '<div class="muted-note" style="text-align:left; color:#fbbf24;">⚠️ Für diesen Monat liegen nicht alle Einzelbuchungen in der App vor. Werte sind unvollständig.</div>'}
-      <div class="sum-row"><span>Anschaffungen persönlich ≥ 100 €${targetSpan(sA, TARGETS.anschaffungen, TARGETS.anschaffungenMax)}</span><span class="val">${fmtEur(sA)}</span></div>
-      ${listHtml(anschaffungen)}
-      ${specialEnabled() || sonder.length ? `<div class="sum-row"><span>⭐ Sonderausgaben (einmalig)</span><span class="val">${fmtEur(sS)}</span></div>${listHtml(sonder)}` : ''}
-      <div class="sum-row"><span>Gemeinsame Anschaffungen (dein Anteil ½)</span><span class="val">${fmtEur(sG)}</span></div>
-      ${shared.length ? `<div class="close-list">${shared.map(e => `<div><span>${escapeHtml(e.date)} · 🛋️ ${escapeHtml(e.position)} (½ von ${fmtEur(e.amount)})</span><span>${fmtEur(e.amount / 2)}</span></div>`).join('')}</div>` : ''}
-      <div class="sum-row"><span>Kleidung</span><span class="val">${fmtEur(sK)}</span></div>
-      <div class="sum-row"><span>Bargeld (Abhebungen)${targetSpan(sB, TARGETS.bargeld)}</span><span class="val">${fmtEur(sB)}</span></div>
-      ${listHtml(bargeld)}
-      <div class="sum-row"><span>Lebensmittel (von dir bezahlt)${targetSpan(sL, TARGETS.lebensmittel)}</span><span class="val">${fmtEur(sL)}</span></div>
-      ${familyBig.length ? `<div class="muted-note" style="text-align:left;">Familien-Käufe ≥ 100 € von dir (nicht mitgezählt, ggf. selbst addieren):</div>${listHtml(familyBig)}` : ''}
-      <pre class="yaml-box" id="close-yaml">${escapeHtml(yaml)}</pre>
-      <button type="button" class="icon-btn copy-btn" id="close-copy-btn" data-label="📋 Für Obsidian kopieren">📋 Für Obsidian kopieren</button>
-      <div class="muted-note" style="text-align:left;">Topf und Kontostand kommen aus der Banking-App. Bargeld = Einträge „Bargeld“ (Abhebungen), die du hier erfasst hast; fehlt eine Abhebung, steht sie nur in der Banking-App. Anschaffungen = persönliche Einträge ab 100 € ohne Lebensmittel, Kleidung, Gastro/Ausgehen, Bargeld, Spenden und Urlaub. Gemeinsame Anschaffungen mit Sonja stehen separat (deine Hälfte) und zählen nicht ins 250-€-Budget.</div>`;
-    $('close-copy-btn').addEventListener('click', (e) => copyText(yaml, e.currentTarget));
+    const when = planData.generatedAt ? new Date(planData.generatedAt) : null;
+    summaryPlan.innerHTML = kpis + monthHtml + calc + saldoHtml +
+      `<div class="muted-note" style="text-align:left;">Aus deinem Sheet „Finanzplan“${when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}. Nur auf diesem Gerät sichtbar.</div>`;
   }
 
   // ---------- Gemeinsame Anschaffungen ----------
@@ -1518,7 +1562,7 @@ document.addEventListener('DOMContentLoaded', () => {
       summaryTrips.innerHTML = '<div class="empty-state">Noch keine Reisekosten erfasst. Oben beim Erfassen „Reise“ wählen.</div>';
       return;
     }
-    summaryTrips.innerHTML = trips.slice(0, 4).map((t, i) => {
+    summaryTrips.innerHTML = trips.slice(0, 4).map((t) => {
       const sa = t.byPayer.Sascha || 0, so = t.byPayer.Sonja || 0;
       const diff = sa - so;
       let settle;
@@ -1534,14 +1578,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="sum-row" style="font-size:0.85rem;"><span>Sascha bezahlt</span><span class="val">${fmtEur(sa)}</span></div>
           <div class="sum-row" style="font-size:0.85rem;"><span>Sonja bezahlt</span><span class="val">${fmtEur(so)}</span></div>
           <div class="settle trip-settle">${settle}</div>
-          <button type="button" class="icon-btn copy-btn trip-copy" data-idx="${i}" data-label="📋 Für Reisenotiz kopieren">📋 Für Reisenotiz kopieren</button>
         </div>`;
-    }).join('') + '<div class="muted-note" style="text-align:left;">Kopiert <code>ist_gesamt</code> und <code>anteil_sonja</code> (was Sonja direkt bezahlt hat). Helga-Anteile bitte in Obsidian ergänzen.</div>';
-    summaryTrips.querySelectorAll('.trip-copy').forEach(btn => btn.addEventListener('click', (e) => {
-      const t = trips[Number(e.currentTarget.dataset.idx)];
-      const yaml = `ist_gesamt: ${Math.round(t.total)}\nanteil_sonja: ${Math.round(t.byPayer.Sonja || 0)}`;
-      copyText(yaml, e.currentTarget);
-    }));
+    }).join('') + '<div class="muted-note" style="text-align:left;">Wer was bezahlt hat, laut App. Erstattungen pro Reise im Sheet „Reisen“ (Ausgleich Reisen).</div>';
   }
 
   monthPrev.addEventListener('click', () => { summaryMonth = shiftMonth(summaryMonth || currentMonthKey(), -1); renderSummary(); });
@@ -1560,13 +1598,13 @@ document.addEventListener('DOMContentLoaded', () => {
       summaryPersonal.innerHTML = '';
       summaryTrend.innerHTML = '';
       summarySmall.innerHTML = '';
-      summaryClose.innerHTML = '';
+      planCard.style.display = 'none';
       tripsCard.style.display = 'none';
       summaryNote.textContent = '';
       return;
     }
 
-    renderClose();
+    renderPlan();
     renderTrips();
     renderSmallSpend();
 
@@ -1618,6 +1656,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     avgF /= 12; avgP /= 12;
 
+    const sonderOwn = (sheetData.entries || [])
+      .filter(e => e.special && e.type === TYPE_PERSONAL && e.paidBy === currentPayer && e.iso && e.iso.slice(0, 7) === summaryMonth)
+      .reduce((a, e) => a + (Number(e.amount) || 0), 0);
+    const sonderRow = sonderOwn > 0
+      ? `<div class="sum-row" style="font-size:0.88rem;"><span>davon ⭐ Sonderausgaben (${currentPayer})</span><span class="val">${fmtEur(sonderOwn)}</span></div>`
+      : '';
     const sharedTotal = Object.values(m.shared || {}).reduce((a, b) => a + b, 0);
     const sharedHalf = sharedTotal / 2;
     const ownTotal = (m.personal[currentPayer] || 0) + sharedHalf;
@@ -1625,7 +1669,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `<div class="sum-row" style="font-size:0.88rem;"><span>＋ ½ gemeinsame Anschaffungen</span><span class="val">${fmtEur(sharedHalf)}</span></div>
          <div class="sum-row total"><span>Deine Kosten (${currentPayer})</span><span class="val">${fmtEur(ownTotal)}</span></div>`
       : '';
-    summaryPersonal.innerHTML = personRows + sharedRows +
+    summaryPersonal.innerHTML = personRows + sonderRow + sharedRows +
       (pSascha + pSonja === 0 && sharedTotal === 0 ? '<div class="muted-note" style="text-align:left;">Noch keine persönlichen Kosten in diesem Monat. Zum Erfassen oben „Persönlich“ wählen.</div>' : '') +
       `<div class="muted-note" style="text-align:left;">Ø pro Monat (12 Monate): Familie ${fmtEur(avgF)} · Persönlich ${currentPayer} ${fmtEur(avgP)}</div>`;
     summaryPersonal.innerHTML += sixMonthHtml('personal', {
@@ -1659,6 +1703,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const config = getApiConfig();
     cfgApiUrl.value = config.apiUrl;
     cfgSecretToken.value = config.secretToken;
+    cfgPrivateToken.value = privateToken();
     updateShareButton();
     settingsDialog.showModal();
   }
@@ -1681,6 +1726,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     store.set('kostentracker_api_url', url);
     store.set('kostentracker_secret_token', token);
+    store.set('kostentracker_private_token', cfgPrivateToken.value.trim());
+    if (!cfgPrivateToken.value.trim()) { planData = null; store.setJSON('kostentracker_plan', null); }
+    planAuthWarned = false;
     settingsDialog.close();
     showToast('Einstellungen gespeichert!', '⚙️');
     updateConnectionStatus();
