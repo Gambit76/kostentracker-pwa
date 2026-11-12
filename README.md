@@ -18,7 +18,7 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ## 🆕 Version 3.11 (November 2026)
 - **App:** Mehr Abstand oben, damit der Titel nicht in die iOS-Statusleiste läuft.
-- **Backend (`Code.gs`, neu bereitstellen):** Neue Einträge landen direkt unter dem letzten echten Eintrag. Bisher hängte `appendRow` sie hinter die letzte Zeile mit irgendeinem Inhalt, und leere Kästchen in Spalte I („Sonderausgabe“) zählen als Inhalt.
+- **Backend (`Code.gs`, neu bereitstellen):** Neue Einträge landen direkt unter dem letzten echten Eintrag. Bisher hängte `appendRow` sie hinter die letzte Zeile mit irgendeinem Inhalt, und leere Kästchen in Spalte I („Sonderausgabe“) zählen als Inhalt. Das Kästchen in Spalte I legt das Script jetzt je Eintrag selbst an; vorab gezogene Kästchen in leeren Zeilen sind nicht mehr nötig.
 
 ## Version 3.10 (November 2026)
 - **Einheitlicher App-Standard** mit Trainingslog und Ernährungslog (siehe `docs/APP-STANDARD.md`): hell/dunkel folgt der Systemeinstellung des Geräts, gleiche Schriften, Ecken und Farbvariablen. Die Typfarben bleiben (Familie grün, Persönlich violett, Reise blau, Gemeinsam einmalig gelb).

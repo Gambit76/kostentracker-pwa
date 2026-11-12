@@ -357,6 +357,9 @@ function resolveRow(sheet, data) {
 function formatRow(sheet, row) {
   sheet.getRange(row, COL.AMOUNT).setNumberFormat('#,##0.00 "€"');
   sheet.getRange(row, COL.DATE).setNumberFormat("dd.MM.yyyy");
+  // Kästchen in Spalte I nur für diese Zeile anlegen (Wert bleibt erhalten). So braucht das Blatt
+  // keine vorab gezogenen Kästchen in leeren Zeilen.
+  sheet.getRange(row, COL.SPECIAL).setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
 }
 
 /** Letzte Zeile mit echtem Eintrag (Position oder Betrag in Spalte A/B); leere Kästchen-Zeilen zählen nicht. */
