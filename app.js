@@ -1,6 +1,8 @@
 /**
  * Kostentracker PWA - Client Logic (v3.6)
  *
+ * Neu in v3.9: Typ „Anschaffung“ heißt sichtbar „Gemeinsam einmalig“ (Anschaffung, BK-Abrechnung …);
+ *   im Sheet bleibt der Wert „Anschaffung“
  * Neu in v3.8: Begriffe „Persönlich laufend“ und „⭐ Persönlich Sonderausgabe“
  * Neu in v3.7: Reisen zeigen den offenen Ausgleich aus dem Sheet „Reisen“ (inkl. Erstattungen);
  *   Privat-Token optional (ohne eigenes Token gilt das normale Token, wenn das Backend es erlaubt)
@@ -441,13 +443,13 @@ document.addEventListener('DOMContentLoaded', () => {
     [TYPE_FAMILY]: 'Geteilte Familienkosten – zählt für den Ausgleich',
     [TYPE_PERSONAL]: 'Nur für dich – zählt NICHT für den Familien-Ausgleich',
     [TYPE_TRIP]: 'Reisekosten – werden pro Reise abgerechnet, nicht im Monatsausgleich',
-    [TYPE_SHARED]: 'Gemeinsame Anschaffung – je 50 % in euren Monatskosten, nicht im Ausgleich'
+    [TYPE_SHARED]: 'Gemeinsame Einmalzahlung (Anschaffung, BK-Abrechnung …) – je 50 %, nicht im Monatsausgleich'
   };
   const SUBMIT_LABELS = {
     [TYPE_FAMILY]: 'Familienkosten speichern',
     [TYPE_PERSONAL]: 'Persönlich speichern',
     [TYPE_TRIP]: 'Reisekosten speichern',
-    [TYPE_SHARED]: 'Anschaffung speichern'
+    [TYPE_SHARED]: 'Gemeinsam einmalig speichern'
   };
 
   // Läuft im Backend schon v3.1 (kennt Typ "Reise")?
@@ -870,7 +872,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const label = isSpecial ? 'Persönlich Sonderausgabe gespeichert'
           : currentType === TYPE_PERSONAL ? 'Persönlich gespeichert'
           : currentType === TYPE_TRIP ? `Reise ${trip}`
-          : currentType === TYPE_SHARED ? 'Gemeinsame Anschaffung' : 'Im Sheet gespeichert';
+          : currentType === TYPE_SHARED ? 'Gemeinsam einmalig gespeichert' : 'Im Sheet gespeichert';
         showToast(`${label}: ${position} ${fmtEur(numericAmount)}`, '✅', 'success');
         // Anzeige-Fehler dürfen einen gespeicherten Eintrag nie in die Offline-Warteschlange schieben
         try {
@@ -1018,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const meta = [entry.paidBy];
     if (personal) meta.push(entry.special ? 'Persönlich · ⭐ Sonderausgabe' : 'Persönlich');
     if (isTrip) meta.push('✈️ ' + (entry.trip || 'Reise'));
-    if (isShared) meta.push('🛋️ Anschaffung (je 50 %)');
+    if (isShared) meta.push('🛋️ Gemeinsam einmalig (je 50 %)');
     if (entry.comment) meta.push(entry.comment);
     if (pending) meta.push('⏳ wartet auf Sync');
     const cls = personal ? 'personal' : isTrip ? 'trip' : isShared ? 'shared' : 'family';
@@ -1369,7 +1371,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderSmallSpend() {
     summarySmall.innerHTML = sixMonthHtml('family', {
       colorSa: '#10b981', colorSo: '#38bdf8',
-      note: 'Nur Typ „Familie“ bzw. leer – ohne Reisen, Anschaffungen und persönliche Kosten.'
+      note: 'Nur Typ „Familie“ bzw. leer – ohne Reisen, gemeinsame Einmalzahlungen und persönliche Kosten.'
     });
   }
 
@@ -1377,7 +1379,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const TOTAL_PARTS = [
     { key: 'family', label: 'Kleinausgaben', color: '#10b981' },
     { key: 'trip', label: 'Reise', color: '#0ea5e9' },
-    { key: 'shared', label: 'Anschaffung', color: '#f59e0b' },
+    { key: 'shared', label: 'Gemeinsam einmalig', color: '#f59e0b' },
     { key: 'personal', label: 'Persönlich', color: '#8b5cf6' }
   ];
   const sumObj = (o) => Object.values(o || {}).reduce((a, b) => a + (Number(b) || 0), 0);
@@ -1493,7 +1495,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ${row('⭐ Persönlich Sonderausgaben', m.sonder)}
           ${row('Kleidung', m.kleidung)}
           ${row('Bargeld', m.bargeld, targetSpan(m.bargeld, t.bargeld))}
-          ${row('½ gemeinsame Anschaffungen', m.gemeinsam)}
+          ${row('½ gemeinsame Sonderzahlungen', m.gemeinsam)}
           ${row('Lebensmittel (von dir bezahlt)', m.lebensmittel, targetSpan(m.lebensmittel, t.lebensmittel))}
           ${row('ETF inkl. Noah', m.etf)}
         </div>`;
@@ -1507,7 +1509,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ${row('− Ø Familie variabel (von dir)', p.familie)}
         ${row('− Ø Persönlich ohne Sonderausgaben', p.alltag)}
         <div class="sum-row total"><span>Freiraum für Sonderausgaben & Anschaffungen</span><span class="val">${eur(p.freiraum)}</span></div>
-        ${p.sonderSchnitt !== null && p.sonderSchnitt !== undefined ? `<div class="muted-note" style="text-align:left;">Zum Vergleich: Ø Persönlich Sonderausgaben + ½ gemeinsame Anschaffungen der letzten 3 Monate ${fmtEur(p.sonderSchnitt)}.</div>` : ''}
+        ${p.sonderSchnitt !== null && p.sonderSchnitt !== undefined ? `<div class="muted-note" style="text-align:left;">Zum Vergleich: Ø Persönlich Sonderausgaben + ½ gemeinsame Sonderzahlungen der letzten 3 Monate ${fmtEur(p.sonderSchnitt)}.</div>` : ''}
         <h4>Topf (Sparrate)</h4>
         ${row('Sparrate', p.sparrate)}
         ${row('− Rücklage Sonderzahlungen', p.ruecklage)}
@@ -1517,14 +1519,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const saldo = planData.saldoSonja || 0;
     const saldoHtml = Math.abs(saldo) >= 0.01
-      ? `<div class="settle">🛋️ Gemeinsame Anschaffungen: <strong>${saldo > 0 ? 'Sonja → Sascha' : 'Sascha → Sonja'}: ${fmtEur(Math.abs(saldo))}</strong> offen</div>`
+      ? `<div class="settle">🛋️ Gemeinsame Sonderzahlungen: <strong>${saldo > 0 ? 'Sonja → Sascha' : 'Sascha → Sonja'}: ${fmtEur(Math.abs(saldo))}</strong> offen</div>`
       : '';
     const when = planData.generatedAt ? new Date(planData.generatedAt) : null;
     summaryPlan.innerHTML = kpis + monthHtml + calc + saldoHtml +
       `<div class="muted-note" style="text-align:left;">Aus deinem Sheet „Finanzplan“${when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}. Nur auf diesem Gerät sichtbar.</div>`;
   }
 
-  // ---------- Gemeinsame Anschaffungen ----------
+  // ---------- Gemeinsame Sonderzahlungen (Typ „Anschaffung“) ----------
   function renderShared(m) {
     sharedCard.style.display = sharedEnabled() ? 'flex' : 'none';
     if (!sharedEnabled()) return;
@@ -1538,7 +1540,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const items = list.length
       ? `<div class="close-list">${list.map(e => `<div><span>${escapeHtml(e.date)} · ${escapeHtml(e.position)} · ${escapeHtml(e.paidBy)}</span><span>${fmtEur(e.amount)}</span></div>`).join('')}</div>`
-      : (total > 0 ? '' : '<div class="muted-note" style="text-align:left;">Keine gemeinsamen Anschaffungen in diesem Monat.</div>');
+      : (total > 0 ? '' : '<div class="muted-note" style="text-align:left;">Keine gemeinsamen Sonderzahlungen in diesem Monat.</div>');
     summaryShared.innerHTML = `
       ${items}
       ${total > 0 ? `<div class="sum-row total"><span>Gesamt</span><span class="val">${fmtEur(total)}</span></div>
@@ -1675,7 +1677,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sharedHalf = sharedTotal / 2;
     const ownTotal = (m.personal[currentPayer] || 0) + sharedHalf;
     const sharedRows = sharedTotal > 0
-      ? `<div class="sum-row" style="font-size:0.88rem;"><span>＋ ½ gemeinsame Anschaffungen</span><span class="val">${fmtEur(sharedHalf)}</span></div>
+      ? `<div class="sum-row" style="font-size:0.88rem;"><span>＋ ½ gemeinsame Sonderzahlungen</span><span class="val">${fmtEur(sharedHalf)}</span></div>
          <div class="sum-row total"><span>Deine Kosten (${currentPayer})</span><span class="val">${fmtEur(ownTotal)}</span></div>`
       : '';
     summaryPersonal.innerHTML = personRows + sonderRow + sharedRows +
@@ -1683,14 +1685,14 @@ document.addEventListener('DOMContentLoaded', () => {
       `<div class="muted-note" style="text-align:left;">Ø pro Monat (12 Monate): Familie ${fmtEur(avgF)} · Persönlich ${currentPayer} ${fmtEur(avgP)}</div>`;
     summaryPersonal.innerHTML += sixMonthHtml('personal', {
       title: '📅 Letzte 6 Monate', colorSa: '#8b5cf6', colorSo: '#c4b5fd',
-      note: 'Nur Typ „Persönlich“ (ohne ½ gemeinsame Anschaffungen).'
+      note: 'Nur Typ „Persönlich“ (ohne ½ gemeinsame Sonderzahlungen).'
     });
 
     renderTotalTrend();
 
     const when = sheetData.generatedAt ? new Date(sheetData.generatedAt) : null;
     summaryNote.textContent = 'Nur variable Kosten aus „Familie Variable Kosten“' +
-      (tripsEnabled() ? ' · Reisen' + (sharedEnabled() ? ' und gemeinsame Anschaffungen' : '') + ' zählen nicht im Familien-Ausgleich' : '') +
+      (tripsEnabled() ? ' · Reisen' + (sharedEnabled() ? ' und gemeinsame Sonderzahlungen' : '') + ' zählen nicht im Familien-Ausgleich' : '') +
       (when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : '');
   }
 

@@ -16,7 +16,14 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.7 (November 2026)
+## 🆕 Version 3.9 (November 2026)
+- Typ **„Gemeinsam einmalig“** (bisher „Anschaffung“) für alle gemeinsamen Einmalzahlungen, die 50/50 geteilt werden: Anschaffungen, Nebenkosten-/BK-Abrechnung, Sonstiges. Im Sheet wird weiter „Anschaffung“ gespeichert – keine Datenumstellung nötig.
+- Backend findet den Finanzplan-Reiter „Gemeinsame Sonderzahlungen“ (alter Name weiter gültig).
+
+## Version 3.8 (November 2026)
+- Begriffe „Persönlich laufend“ und „⭐ Persönlich Sonderausgabe“.
+
+## Version 3.7 (November 2026)
 - **Reisen:** Der Ausgleich je Reise kommt aus dem Sheet „Reisen“ (Dashboard Reisen, „Ausgleich offen“) und berücksichtigt damit bereits erstattete Posten. Ohne `REISEN_ID` rechnet die App wie bisher selbst.
 - **Privat-Token optional:** `PRIVATE_TOKEN` leer lassen = der Finanzplan nutzt das normale Token. Sobald eine zweite Person die App nutzt, ein eigenes `PRIVATE_TOKEN` setzen und nur auf dem eigenen Handy eintragen.
 

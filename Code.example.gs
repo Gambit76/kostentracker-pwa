@@ -4,6 +4,11 @@
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
  *
+ * Neu in v3.9:
+ *  - Reiter im Finanzplan heißt „Gemeinsame Sonderzahlungen“ (alter Name „Gemeinsame Anschaffungen“
+ *    wird weiter erkannt); Saldo wird über die Beschriftung „Saldo gesamt“ gefunden.
+ *  - Der Typ heißt in der App „Gemeinsam einmalig“, gespeichert wird weiter „Anschaffung“.
+ *
  * Neu in v3.8:
  *  - Finanzplan-Spalten heißen jetzt „Persönlich laufend“ und „Persönlich Sonderausgaben“;
  *    alte Namen werden weiterhin erkannt.
@@ -75,7 +80,7 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.8"
+  VERSION: "3.9"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
@@ -664,7 +669,7 @@ function buildPlanResponse() {
   const C = {
     sparrate: col("topf einzahlung"), entnahmen: col("entnahmen gesamt"), ungeplant: col("davon ungeplant"),
     netto: col("netto im topf"), topf: col("topf-stand"), sonstige: col("persönlich laufend", "sonstige anschaffungen"),
-    gemeinsam: col("gem. anschaffungen"), kleidung: col("kleidung"), bargeld: col("bargeld"),
+    gemeinsam: col("gem. sonderzahlungen", "gem. anschaffungen"), kleidung: col("kleidung"), bargeld: col("bargeld"),
     lebensmittel: col("lebensmittel"), etf: col("etf"), extra: col("extra-einzahlungen"),
     herkunft: col("herkunft"), sonder: col("persönlich sonderausgaben", "sonderausgaben")
   };
@@ -734,7 +739,19 @@ function buildPlanResponse() {
     withdrawals.sort(function (a, b) { return a.iso < b.iso ? 1 : -1; });
   }
 
-  const saldoSonja = planNum(sh("Gemeinsame Anschaffungen").getRange("B3").getValue());
+  const gemSheet = ss.getSheetByName("Gemeinsame Sonderzahlungen") || ss.getSheetByName("Gemeinsame Anschaffungen");
+  let saldoSonja = 0;
+  if (gemSheet) {
+    const top = gemSheet.getRange(1, 1, 4, 6).getValues();
+    for (let r = 0; r < top.length; r++) {
+      if (String(top[r][0] || "").toLowerCase().indexOf("saldo gesamt") === 0) {
+        for (let c = 1; c < top[r].length; c++) {
+          if (typeof top[r][c] === "number") { saldoSonja = round2(top[r][c]); break; }
+        }
+        break;
+      }
+    }
+  }
 
   return { success: true, version: CONFIG.VERSION, generatedAt: new Date().toISOString(),
     months: months, plan: plan, targets: targets, withdrawals: withdrawals, saldoSonja: saldoSonja };

@@ -903,7 +903,7 @@
           </button>
           <button type="button" class="payer-btn" id="btn-type-shared" data-type="Anschaffung">
             <span class="avatar">🛋️</span>
-            <span>Anschaffung</span>
+            <span>Gemeinsam einmalig</span>
           </button>
         </section>
         <div class="type-hint" id="type-hint">Geteilte Familienkosten – zählt für den Ausgleich</div>
@@ -1009,7 +1009,7 @@
             <button type="button" data-val="Familie">Familie</button>
             <button type="button" data-val="Persönlich">Persönlich</button>
             <button type="button" data-val="Reise" id="filter-type-trip">Reise</button>
-            <button type="button" data-val="Anschaffung" id="filter-type-shared">Anschaff.</button>
+            <button type="button" data-val="Anschaffung" id="filter-type-shared">Gem. einm.</button>
           </div>
           <div class="seg" id="filter-payer">
             <button type="button" data-val="all" class="active">Beide</button>
@@ -1049,7 +1049,7 @@
       </section>
 
       <section class="card" id="shared-card" style="display:none;">
-        <div class="card-title"><span>🛋️ Gemeinsame Anschaffungen</span></div>
+        <div class="card-title"><span>🛋️ Gemeinsame Sonderzahlungen</span></div>
         <div id="summary-shared" style="display:flex; flex-direction:column; gap:10px;"></div>
       </section>
 
@@ -1065,7 +1065,7 @@
 
       <section class="card">
         <div class="card-title"><span>🧮 Alle Kosten · 6 Monate</span></div>
-        <div class="legend" style="flex-wrap:wrap;"><span><i style="background:#10b981"></i>Kleinausgaben</span><span><i style="background:#0ea5e9"></i>Reise</span><span><i style="background:#f59e0b"></i>Anschaffung</span><span><i style="background:#8b5cf6"></i>Persönlich</span><span><i style="background:#f8fafc"></i>Ø</span></div>
+        <div class="legend" style="flex-wrap:wrap;"><span><i style="background:#10b981"></i>Kleinausgaben</span><span><i style="background:#0ea5e9"></i>Reise</span><span><i style="background:#f59e0b"></i>Gem. einmalig</span><span><i style="background:#8b5cf6"></i>Persönlich</span><span><i style="background:#f8fafc"></i>Ø</span></div>
         <div id="summary-trend" style="display:flex; flex-direction:column; gap:8px;"></div>
       </section>
       <div class="muted-note" id="summary-note"></div>
@@ -1121,7 +1121,7 @@
             <option>Familie</option>
             <option>Persönlich</option>
             <option id="edit-type-trip">Reise</option>
-            <option id="edit-type-shared">Anschaffung</option>
+            <option id="edit-type-shared" value="Anschaffung">Gemeinsam einmalig</option>
           </select>
         </div>
       </div>
@@ -1201,7 +1201,7 @@
       <button type="button" class="btn-secondary" id="recalc-chips-btn">⚡ Schnellwahl neu berechnen (letzte 100 Einträge, je Person)</button>
       <button type="button" class="btn-secondary" id="share-link-btn" style="display: none; border-color: #10b981; color: #34d399;">🔗 Setup-Link für Partnerin kopieren</button>
       <button type="button" class="btn-secondary" id="force-reload-btn" style="color: var(--text-subtle); font-size: 0.75rem; padding: 6px; border: none; background: transparent;">🔄 App-Cache leeren & aktualisieren</button>
-      <div class="muted-note" id="version-note">App-Version 3.8</div>
+      <div class="muted-note" id="version-note">App-Version 3.9</div>
     </div>
     <div class="dialog-footer">
       <button type="button" class="submit-btn" id="save-settings-btn" style="margin-top: 0;">Speichern</button>
@@ -1210,7 +1210,7 @@
 
   <!-- Scripts -->
   <script src="config.js"></script>
-  <script src="app.js?v=3.17"></script>
+  <script src="app.js?v=3.18"></script>
 
 </body>
 </html>
