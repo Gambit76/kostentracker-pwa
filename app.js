@@ -41,7 +41,7 @@
 
 // Einzige Stelle für die App-Version in app.js. Bei jeder Änderung auch CACHE_NAME in sw.js
 // und ?v= am app.js-Script-Tag in index.html/tracker.html hochzählen.
-const APP_VERSION = '3.10';
+const APP_VERSION = '3.11';
 
 document.addEventListener('DOMContentLoaded', () => {
   { const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; }

@@ -16,7 +16,11 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.10 (November 2026)
+## 🆕 Version 3.11 (November 2026)
+- **App:** Mehr Abstand oben, damit der Titel nicht in die iOS-Statusleiste läuft.
+- **Backend (`Code.gs`, neu bereitstellen):** Neue Einträge landen direkt unter dem letzten echten Eintrag. Bisher hängte `appendRow` sie hinter die letzte Zeile mit irgendeinem Inhalt, und leere Kästchen in Spalte I („Sonderausgabe“) zählen als Inhalt.
+
+## Version 3.10 (November 2026)
 - **Einheitlicher App-Standard** mit Trainingslog und Ernährungslog (siehe `docs/APP-STANDARD.md`): hell/dunkel folgt der Systemeinstellung des Geräts, gleiche Schriften, Ecken und Farbvariablen. Die Typfarben bleiben (Familie grün, Persönlich violett, Reise blau, Gemeinsam einmalig gelb).
 - **Einstellungen** (Zahnrad) gegliedert in Verbindung, Schnellwahl und App; Dialoge öffnen als Blatt von unten.
 - Versionsnummer aufgeräumt: `APP_VERSION` in `app.js`, `CACHE_NAME` in `sw.js`, `?v=` am Script-Tag. Kein Backend-Update nötig.

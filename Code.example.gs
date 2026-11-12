@@ -80,7 +80,7 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.9"
+  VERSION: "3.11"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
@@ -359,6 +359,17 @@ function formatRow(sheet, row) {
   sheet.getRange(row, COL.DATE).setNumberFormat("dd.MM.yyyy");
 }
 
+/** Letzte Zeile mit echtem Eintrag (Position oder Betrag in Spalte A/B); leere Kästchen-Zeilen zählen nicht. */
+function lastDataRow(sheet) {
+  const last = sheet.getLastRow();
+  if (last < 2) return 1;
+  const vals = sheet.getRange(2, 1, last - 1, 2).getValues();
+  for (let i = vals.length - 1; i >= 0; i--) {
+    if (String(vals[i][0]).trim() !== "" || String(vals[i][1]).trim() !== "") return i + 2;
+  }
+  return 1;
+}
+
 function handleAdd(data) {
   // Doppelbuchungs-Schutz: gleiche clientId innerhalb von 6 h wird nicht erneut geschrieben
   const cache = CacheService.getScriptCache();
@@ -375,8 +386,11 @@ function handleAdd(data) {
 
   const sheet = getSheet();
   v.entry.id = nextId(sheet);
-  sheet.appendRow(entryToRow(v.entry));
-  const lastRow = sheet.getLastRow();
+  // Nicht appendRow: Das hängt hinter der letzten Zeile mit irgendeinem Inhalt an. Leere Kästchen
+  // in Spalte I (FALSE) zählen dabei als Inhalt, der Eintrag landet dann weit unten.
+  const lastRow = lastDataRow(sheet) + 1;
+  if (lastRow > sheet.getMaxRows()) sheet.insertRowAfter(sheet.getMaxRows());
+  sheet.getRange(lastRow, 1, 1, NUM_COLS).setValues([entryToRow(v.entry)]);
   formatRow(sheet, lastRow);
 
   if (data.clientId) cache.put("cid_" + data.clientId, lastRow + ":" + v.entry.id, 21600);
