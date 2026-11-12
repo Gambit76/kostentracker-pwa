@@ -1,6 +1,7 @@
 /**
  * Kostentracker PWA - Client Logic (v3.6)
  *
+ * Neu in v3.8: Begriffe „Persönlich laufend“ und „⭐ Persönlich Sonderausgabe“
  * Neu in v3.7: Reisen zeigen den offenen Ausgleich aus dem Sheet „Reisen“ (inkl. Erstattungen);
  *   Privat-Token optional (ohne eigenes Token gilt das normale Token, wenn das Backend es erlaubt)
  * Neu in v3.6: Übersicht aufgeräumt – Karte „Finanzplan“ (privat, nur mit Privat-Token),
@@ -866,7 +867,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await apiPost(payload);
       if (result && result.success) {
         if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
-        const label = isSpecial ? 'Sonderausgabe gespeichert'
+        const label = isSpecial ? 'Persönlich Sonderausgabe gespeichert'
           : currentType === TYPE_PERSONAL ? 'Persönlich gespeichert'
           : currentType === TYPE_TRIP ? `Reise ${trip}`
           : currentType === TYPE_SHARED ? 'Gemeinsame Anschaffung' : 'Im Sheet gespeichert';
@@ -1015,7 +1016,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isTrip = entry.type === TYPE_TRIP;
     const isShared = entry.type === TYPE_SHARED;
     const meta = [entry.paidBy];
-    if (personal) meta.push(entry.special ? 'Persönlich · ⭐ Sonder' : 'Persönlich');
+    if (personal) meta.push(entry.special ? 'Persönlich · ⭐ Sonderausgabe' : 'Persönlich');
     if (isTrip) meta.push('✈️ ' + (entry.trip || 'Reise'));
     if (isShared) meta.push('🛋️ Anschaffung (je 50 %)');
     if (entry.comment) meta.push(entry.comment);
@@ -1464,7 +1465,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const kpis = `
       <div class="small-kpis">
         <div class="small-kpi"><div class="k">Freiraum / Monat</div><div class="v ${p.freiraum < 0 ? 'target-bad' : 'target-ok'}">${eur(p.freiraum)}</div></div>
-        <div class="small-kpi"><div class="k">Ø Alltag persönlich</div><div class="v">${eur(p.alltag)}</div></div>
+        <div class="small-kpi"><div class="k">Ø Persönlich o. Sonder</div><div class="v">${eur(p.alltag)}</div></div>
         <div class="small-kpi"><div class="k">Topf Monatsende</div><div class="v">${m && m.topf !== null ? eur(m.topf) : '–'}</div></div>
       </div>`;
 
@@ -1488,8 +1489,8 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="plan-section">
           <h4>Deine Ausgaben im Monat</h4>
-          ${row('Sonstige Anschaffungen', m.sonstige, targetSpan(m.sonstige, t.sonstige, t.sonstigeMax))}
-          ${row('⭐ Sonderausgaben', m.sonder)}
+          ${row('Persönlich laufend', m.sonstige, targetSpan(m.sonstige, t.sonstige, t.sonstigeMax))}
+          ${row('⭐ Persönlich Sonderausgaben', m.sonder)}
           ${row('Kleidung', m.kleidung)}
           ${row('Bargeld', m.bargeld, targetSpan(m.bargeld, t.bargeld))}
           ${row('½ gemeinsame Anschaffungen', m.gemeinsam)}
@@ -1504,9 +1505,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ${row('Gehalt + Kindergeld', (p.netto || 0) + (p.kindergeld || 0))}
         ${row('− Laufende Fixkosten & Sparen', p.fixkosten)}
         ${row('− Ø Familie variabel (von dir)', p.familie)}
-        ${row('− Ø Alltag persönlich', p.alltag)}
+        ${row('− Ø Persönlich ohne Sonderausgaben', p.alltag)}
         <div class="sum-row total"><span>Freiraum für Sonderausgaben & Anschaffungen</span><span class="val">${eur(p.freiraum)}</span></div>
-        ${p.sonderSchnitt !== null && p.sonderSchnitt !== undefined ? `<div class="muted-note" style="text-align:left;">Zum Vergleich: Ø Sonderausgaben + ½ Anschaffungen der letzten 3 Monate ${fmtEur(p.sonderSchnitt)}.</div>` : ''}
+        ${p.sonderSchnitt !== null && p.sonderSchnitt !== undefined ? `<div class="muted-note" style="text-align:left;">Zum Vergleich: Ø Persönlich Sonderausgaben + ½ gemeinsame Anschaffungen der letzten 3 Monate ${fmtEur(p.sonderSchnitt)}.</div>` : ''}
         <h4>Topf (Sparrate)</h4>
         ${row('Sparrate', p.sparrate)}
         ${row('− Rücklage Sonderzahlungen', p.ruecklage)}
@@ -1668,7 +1669,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .filter(e => e.special && e.type === TYPE_PERSONAL && e.paidBy === currentPayer && e.iso && e.iso.slice(0, 7) === summaryMonth)
       .reduce((a, e) => a + (Number(e.amount) || 0), 0);
     const sonderRow = sonderOwn > 0
-      ? `<div class="sum-row" style="font-size:0.88rem;"><span>davon ⭐ Sonderausgaben (${currentPayer})</span><span class="val">${fmtEur(sonderOwn)}</span></div>`
+      ? `<div class="sum-row" style="font-size:0.88rem;"><span>davon ⭐ Persönlich Sonderausgaben</span><span class="val">${fmtEur(sonderOwn)}</span></div>`
       : '';
     const sharedTotal = Object.values(m.shared || {}).reduce((a, b) => a + b, 0);
     const sharedHalf = sharedTotal / 2;

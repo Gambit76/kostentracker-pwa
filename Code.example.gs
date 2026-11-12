@@ -4,6 +4,10 @@
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
  *
+ * Neu in v3.8:
+ *  - Finanzplan-Spalten heißen jetzt „Persönlich laufend“ und „Persönlich Sonderausgaben“;
+ *    alte Namen werden weiterhin erkannt.
+ *
  * Neu in v3.7:
  *  - Reisen in der App zeigen den offenen Ausgleich aus dem Sheet „Reisen“ (Dashboard Reisen,
  *    Spalte „Ausgleich offen“), also inkl. bereits erstatteter Posten. Ohne REISEN_ID wie bisher.
@@ -18,7 +22,7 @@
  *    auf das Finanzplan-Sheet erlauben.
  *
  * Neu in v3.5:
- *  - Spalte I "Sonder" (Checkbox): einmalige persönliche Sonderausgabe (z. B. Hanteln,
+ *  - Spalte I "Sonder" (Checkbox): Persönlich Sonderausgabe (z. B. Hanteln,
  *    großes Geschenk). Nur bei Typ "Persönlich" möglich. Der Finanzplan zählt solche
  *    Einträge nicht in die Alltagskosten, sondern separat als Sonderausgabe.
  *  - Ältere App-Versionen ohne Sonder-Feld lassen einen gesetzten Haken beim Bearbeiten unverändert.
@@ -71,7 +75,7 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.7"
+  VERSION: "3.8"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
@@ -651,16 +655,18 @@ function buildPlanResponse() {
   const mSheet = sh("Monate");
   const mVals = mSheet.getRange(5, 1, Math.max(mSheet.getLastRow() - 4, 1), mSheet.getLastColumn()).getValues();
   const head = mVals[0].map(function (h) { return String(h || "").toLowerCase(); });
-  const col = function (prefix) {
-    for (let i = 0; i < head.length; i++) if (head[i].indexOf(prefix) === 0) return i;
+  const col = function () {
+    for (let a = 0; a < arguments.length; a++) {
+      for (let i = 0; i < head.length; i++) if (head[i].indexOf(arguments[a]) === 0) return i;
+    }
     return -1;
   };
   const C = {
     sparrate: col("topf einzahlung"), entnahmen: col("entnahmen gesamt"), ungeplant: col("davon ungeplant"),
-    netto: col("netto im topf"), topf: col("topf-stand"), sonstige: col("sonstige anschaffungen"),
+    netto: col("netto im topf"), topf: col("topf-stand"), sonstige: col("persönlich laufend", "sonstige anschaffungen"),
     gemeinsam: col("gem. anschaffungen"), kleidung: col("kleidung"), bargeld: col("bargeld"),
     lebensmittel: col("lebensmittel"), etf: col("etf"), extra: col("extra-einzahlungen"),
-    herkunft: col("herkunft"), sonder: col("sonderausgaben")
+    herkunft: col("herkunft"), sonder: col("persönlich sonderausgaben", "sonderausgaben")
   };
   const now = new Date();
   const nowKey = Utilities.formatDate(now, tz, "yyyy-MM");
@@ -693,7 +699,7 @@ function buildPlanResponse() {
     kindergeld: findByLabel(fx, 0, 1, ["Kindergeld"]),
     fixkosten: findByLabel(fx, 0, 1, ["Laufende Fixkosten"]),
     familie: findByLabel(fx, 0, 1, ["Variable Familienkosten"]),
-    alltag: findByLabel(fx, 0, 1, ["Ø persönliche Alltagskosten", "Ø persönliche variable"]),
+    alltag: findByLabel(fx, 0, 1, ["Ø Persönlich ohne Sonderausgaben", "Ø persönliche Alltagskosten", "Ø persönliche variable"]),
     freiraum: findByLabel(fx, 0, 1, ["Freiraum pro Monat"]),
     sonderSchnitt: findByLabel(fx, 0, 1, ["Zum Vergleich"]),
     ruecklage: findByLabel(fx, 3, 6, ["Rücklage pro Monat"]),
@@ -704,8 +710,8 @@ function buildPlanResponse() {
 
   const ein = sh("Einstellungen").getRange(1, 1, 20, 2).getValues();
   const targets = {
-    sonstige: findByLabel(ein, 0, 1, ["Budget sonstige"]),
-    sonstigeMax: findByLabel(ein, 0, 1, ["Obergrenze sonstige"]),
+    sonstige: findByLabel(ein, 0, 1, ["Budget Persönlich laufend", "Budget sonstige"]),
+    sonstigeMax: findByLabel(ein, 0, 1, ["Obergrenze Persönlich laufend", "Obergrenze sonstige"]),
     lebensmittel: findByLabel(ein, 0, 1, ["Ziel Lebensmittel"]),
     bargeld: findByLabel(ein, 0, 1, ["Ziel Bargeld"])
   };
