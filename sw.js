@@ -1,4 +1,4 @@
-const CACHE_NAME = 'kostentracker-v3.18';
+const CACHE_NAME = 'kostentracker-v3.10';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

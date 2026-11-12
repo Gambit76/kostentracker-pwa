@@ -16,7 +16,12 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.9 (November 2026)
+## 🆕 Version 3.10 (November 2026)
+- **Einheitlicher App-Standard** mit Trainingslog und Ernährungslog (siehe `docs/APP-STANDARD.md`): hell/dunkel folgt der Systemeinstellung des Geräts, gleiche Schriften, Ecken und Farbvariablen. Die Typfarben bleiben (Familie grün, Persönlich violett, Reise blau, Gemeinsam einmalig gelb).
+- **Einstellungen** (Zahnrad) gegliedert in Verbindung, Schnellwahl und App; Dialoge öffnen als Blatt von unten.
+- Versionsnummer aufgeräumt: `APP_VERSION` in `app.js`, `CACHE_NAME` in `sw.js`, `?v=` am Script-Tag. Kein Backend-Update nötig.
+
+## Version 3.9 (November 2026)
 - Typ **„Gemeinsam einmalig“** (bisher „Anschaffung“) für alle gemeinsamen Einmalzahlungen, die 50/50 geteilt werden: Anschaffungen, Nebenkosten-/BK-Abrechnung, Sonstiges. Im Sheet wird weiter „Anschaffung“ gespeichert – keine Datenumstellung nötig.
 - Backend findet den Finanzplan-Reiter „Gemeinsame Sonderzahlungen“ (alter Name weiter gültig).
 

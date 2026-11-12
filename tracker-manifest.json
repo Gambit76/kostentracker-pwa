@@ -6,8 +6,8 @@
   "start_url": "./tracker.html",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#eceff2",
+  "theme_color": "#17784a",
   "lang": "de",
   "icons": [
     {

@@ -1,6 +1,8 @@
 /**
- * Kostentracker PWA - Client Logic (v3.6)
+ * Kostentracker PWA - Client Logic
  *
+ * Neu in v3.10: App-Standard – hell/dunkel nach Systemeinstellung, einheitliche Schrift und Farbvariablen,
+ *   Einstellungen wie in Trainingslog/Ernährungslog; Versionsnummer nur noch in APP_VERSION (+ sw.js, index.html)
  * Neu in v3.9: Typ „Anschaffung“ heißt sichtbar „Gemeinsam einmalig“ (Anschaffung, BK-Abrechnung …);
  *   im Sheet bleibt der Wert „Anschaffung“
  * Neu in v3.8: Begriffe „Persönlich laufend“ und „⭐ Persönlich Sonderausgabe“
@@ -37,7 +39,12 @@
  *  - Sicherheits-Token für alle Zugriffe, Doppelbuchungs-Schutz für die Offline-Warteschlange
  */
 
+// Einzige Stelle für die App-Version in app.js. Bei jeder Änderung auch CACHE_NAME in sw.js
+// und ?v= am app.js-Script-Tag in index.html/tracker.html hochzählen.
+const APP_VERSION = '3.10';
+
 document.addEventListener('DOMContentLoaded', () => {
+  { const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; }
   const $ = (id) => document.getElementById(id);
 
   // ---------- Elements ----------
@@ -1348,8 +1355,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     return `<div style="display:flex; flex-direction:column; gap:10px;">
-      ${opts.title ? `<div class="card-title" style="margin-top:6px; border-top:1px dashed var(--surface-border); padding-top:12px;"><span>${opts.title}</span></div>` : ''}
-      <div class="legend"><span><i style="background:${cSa}"></i>Sascha</span><span><i style="background:${cSo}"></i>Sonja</span><span><i style="background:#f8fafc"></i>Ø 6 Monate</span></div>
+      ${opts.title ? `<div class="card-title" style="margin-top:6px; border-top:1px dashed var(--line); padding-top:12px;"><span>${opts.title}</span></div>` : ''}
+      <div class="legend"><span><i style="background:${cSa}"></i>Sascha</span><span><i style="background:${cSo}"></i>Sonja</span><span><i style="background:var(--ink)"></i>Ø 6 Monate</span></div>
       <div class="small-kpis">
         <div class="small-kpi"><div class="k">Ø Sascha</div><div class="v">${fmtEur(avgSa)}</div></div>
         <div class="small-kpi"><div class="k">Ø Sonja</div><div class="v">${fmtEur(avgSo)}</div></div>
@@ -1370,17 +1377,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function renderSmallSpend() {
     summarySmall.innerHTML = sixMonthHtml('family', {
-      colorSa: '#10b981', colorSo: '#38bdf8',
+      colorSa: 'var(--c-fam)', colorSo: 'var(--c-so)',
       note: 'Nur Typ „Familie“ bzw. leer – ohne Reisen, gemeinsame Einmalzahlungen und persönliche Kosten.'
     });
   }
 
   // ---------- Gesamtkosten aller Arten: letzte 6 Monate ----------
   const TOTAL_PARTS = [
-    { key: 'family', label: 'Kleinausgaben', color: '#10b981' },
-    { key: 'trip', label: 'Reise', color: '#0ea5e9' },
-    { key: 'shared', label: 'Gemeinsam einmalig', color: '#f59e0b' },
-    { key: 'personal', label: 'Persönlich', color: '#8b5cf6' }
+    { key: 'family', label: 'Kleinausgaben', color: 'var(--c-fam)' },
+    { key: 'trip', label: 'Reise', color: 'var(--c-trip)' },
+    { key: 'shared', label: 'Gemeinsam einmalig', color: 'var(--c-shared)' },
+    { key: 'personal', label: 'Persönlich', color: 'var(--c-per)' }
   ];
   const sumObj = (o) => Object.values(o || {}).reduce((a, b) => a + (Number(b) || 0), 0);
 
@@ -1402,7 +1409,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const rowHtml = (r, cls = '', label = monthName(r.k, true)) => `
       <div>
-        <div class="sum-row ${cls}" style="font-size:0.85rem;"><span class="${cls ? '' : 'lbl'}" style="color:var(--text-muted);">${label}</span><span class="val">${fmtEur(r.t)}</span></div>
+        <div class="sum-row ${cls}" style="font-size:0.85rem;"><span class="${cls ? '' : 'lbl'}" style="color:var(--muted);">${label}</span><span class="val">${fmtEur(r.t)}</span></div>
         <div class="stack" style="margin-top:4px;">
           ${r.parts.map((v, i) => v > 0 ? `<span style="width:${(v / maxT) * 100}%; background:${TOTAL_PARTS[i].color}; height:100%;"></span>` : '').join('')}
           <span class="avg-mark" style="left:${(avgT / maxT) * 100}%"></span>
@@ -1547,7 +1554,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <div class="sum-row"><span>je Person (50 %)</span><span class="val">${fmtEur(total / 2)}</span></div>` : ''}
       <div class="muted-note" style="text-align:left;">Zählt nicht im Ausgleich. Letzte 12 Monate: ${fmtEur(last12)} (je ${fmtEur(last12 / 2)})</div>`;
     summaryShared.innerHTML += sixMonthHtml('shared', {
-      title: '📅 Letzte 6 Monate', colorSa: '#f59e0b', colorSo: '#fcd34d',
+      title: '📅 Letzte 6 Monate', colorSa: 'var(--c-shared)', colorSo: 'var(--c-shared-2)',
       note: 'Spalten = wer bezahlt hat. Kostenanteil je Person = ½ von Gesamt.'
     });
   }
@@ -1684,7 +1691,7 @@ document.addEventListener('DOMContentLoaded', () => {
       (pSascha + pSonja === 0 && sharedTotal === 0 ? '<div class="muted-note" style="text-align:left;">Noch keine persönlichen Kosten in diesem Monat. Zum Erfassen oben „Persönlich“ wählen.</div>' : '') +
       `<div class="muted-note" style="text-align:left;">Ø pro Monat (12 Monate): Familie ${fmtEur(avgF)} · Persönlich ${currentPayer} ${fmtEur(avgP)}</div>`;
     summaryPersonal.innerHTML += sixMonthHtml('personal', {
-      title: '📅 Letzte 6 Monate', colorSa: '#8b5cf6', colorSo: '#c4b5fd',
+      title: '📅 Letzte 6 Monate', colorSa: 'var(--c-per)', colorSo: 'var(--c-per-2)',
       note: 'Nur Typ „Persönlich“ (ohne ½ gemeinsame Sonderzahlungen).'
     });
 
@@ -1853,6 +1860,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (forceReloadBtn) {
     forceReloadBtn.addEventListener('click', async () => {
+      if (navigator.onLine === false) { showToast('Offline – Aktualisieren geht nur mit Netz.', '⚠️', 'warning', 4000); return; }
       showToast('Cache wird geleert...', '🔄');
       if ('caches' in window) {
         const keys = await caches.keys();
@@ -1883,10 +1891,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Service Worker ----------
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=3.8')
+      navigator.serviceWorker.register('./sw.js?v=' + APP_VERSION)
         .then((reg) => {
           reg.update();
-          console.log('Service Worker v3.8 aktiv.');
+          console.log('Service Worker v' + APP_VERSION + ' aktiv.');
         })
         .catch(err => console.warn('Service Worker Registrierung fehlgeschlagen:', err));
     });
