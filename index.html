@@ -764,6 +764,21 @@
     .plan-section { display: flex; flex-direction: column; gap: 6px; }
     .plan-section h4 { margin: 4px 0 0; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
     .plan-section .sum-row { font-size: 0.9rem; }
+    /* Finanzplan: Ist-Block (gewählter Monat) und Plan-Block (Durchschnittsmonat) */
+    .plan-block { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--line); }
+    .plan-block.ist { border-left: 4px solid var(--c-per); }
+    .plan-block.plan { background: var(--input); border-style: dashed; }
+    .plan-block.plan .small-kpi { background: var(--surface); border: 1px solid var(--line); }
+    .plan-block-head { display: flex; align-items: center; gap: 8px; }
+    .plan-block-title { font-family: var(--f-display); font-size: 19px; font-weight: 700; letter-spacing: .01em; line-height: 1.1; }
+    .plan-tag { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 10px; }
+    .plan-block.ist .plan-tag { background: var(--c-per); color: var(--surface); }
+    .plan-block.plan .plan-tag { background: var(--surface); color: var(--muted); border: 1px solid var(--line); }
+    .plan-block-sub { font-size: 0.76rem; color: var(--muted); margin-top: -4px; }
+    .small-kpis.two { grid-template-columns: 1fr 1fr; }
+    .plan-block .close-list span:last-child { white-space: nowrap; flex-shrink: 0; }
+    .plan-block .sum-row { gap: 8px; }
+    .plan-block .sum-row .val { white-space: nowrap; flex-shrink: 0; }
     .plan-status { font-size: 0.75rem; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
     .plan-status.ok { background: var(--ok-soft); color: var(--ok); }
     .plan-status.bad { background: var(--warn-soft); color: var(--warn); }
@@ -1192,7 +1207,7 @@
 
   <!-- Scripts -->
   <script src="config.js"></script>
-  <script src="app.js?v=3.11"></script>
+  <script src="app.js?v=3.12"></script>
 
 </body>
 </html>

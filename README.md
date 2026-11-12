@@ -16,7 +16,10 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.11 (November 2026)
+## 🆕 Version 3.12 (November 2026)
+- **Übersicht → Finanzplan** in zwei klar getrennte Blöcke geteilt: **„Ist“** (gewählter Monat: Topf, Entnahmen, deine Ausgaben – ändert sich mit der Monatswahl) und **„Plan“** (Durchschnittsmonat: Freiraum und Verteilung der Sparrate – gilt für jeden Monat gleich). Die Kacheln stehen jetzt im jeweils passenden Block. Kein Backend-Update nötig.
+
+## Version 3.11 (November 2026)
 - **App:** Mehr Abstand oben, damit der Titel nicht in die iOS-Statusleiste läuft.
 - **Backend (`Code.gs`, neu bereitstellen):** Neue Einträge landen direkt unter dem letzten echten Eintrag. Bisher hängte `appendRow` sie hinter die letzte Zeile mit irgendeinem Inhalt, und leere Kästchen in Spalte I („Sonderausgabe“) zählen als Inhalt. Das Kästchen in Spalte I legt das Script jetzt je Eintrag selbst an; vorab gezogene Kästchen in leeren Zeilen sind nicht mehr nötig.
 

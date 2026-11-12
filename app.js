@@ -41,7 +41,7 @@
 
 // Einzige Stelle für die App-Version in app.js. Bei jeder Änderung auch CACHE_NAME in sw.js
 // und ?v= am app.js-Script-Tag in index.html/tracker.html hochzählen.
-const APP_VERSION = '3.11';
+const APP_VERSION = '3.12';
 
 document.addEventListener('DOMContentLoaded', () => {
   { const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; }
@@ -1471,25 +1471,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const eur = (v) => (v === null || v === undefined ? '–' : fmtEur(v));
     const row = (label, val, extra = '') => `<div class="sum-row"><span>${label}${extra}</span><span class="val">${eur(val)}</span></div>`;
 
-    const kpis = `
-      <div class="small-kpis">
-        <div class="small-kpi"><div class="k">Freiraum / Monat</div><div class="v ${p.freiraum < 0 ? 'target-bad' : 'target-ok'}">${eur(p.freiraum)}</div></div>
-        <div class="small-kpi"><div class="k">Ø Persönlich o. Sonder</div><div class="v">${eur(p.alltag)}</div></div>
-        <div class="small-kpi"><div class="k">Topf Monatsende</div><div class="v">${m && m.topf !== null ? eur(m.topf) : '–'}</div></div>
-      </div>`;
-
-    let monthHtml;
+    // Block 1: Ist-Werte des gewählten Monats (ändern sich mit der Monatswahl)
+    let monthBody;
     if (!m) {
-      monthHtml = '<div class="muted-note" style="text-align:left;">Für diesen Monat stehen noch keine Werte im Finanzplan.</div>';
+      monthBody = '<div class="muted-note" style="text-align:left;">Für diesen Monat stehen noch keine Werte im Finanzplan.</div>';
     } else {
       const ok = m.netto >= 0;
       const wd = (planData.withdrawals || []).filter(w => w.iso.slice(0, 7) === summaryMonth);
       const wdList = wd.length
         ? `<div class="close-list">${wd.map(w => `<div><span>${escapeHtml(w.date)} · ${escapeHtml(w.purpose || 'Entnahme')}${w.planned ? '' : ' · ungeplant'}</span><span>${fmtEur(w.amount)}</span></div>`).join('')}</div>`
         : '';
-      monthHtml = `
+      const persCls = !t.sonstige ? '' : (m.sonstige <= t.sonstige ? 'target-ok' : (t.sonstigeMax && m.sonstige <= t.sonstigeMax ? '' : 'target-bad'));
+      monthBody = `
+        <div class="small-kpis two">
+          <div class="small-kpi"><div class="k">Topf Monatsende</div><div class="v">${m.topf !== null ? eur(m.topf) : '–'}</div></div>
+          <div class="small-kpi"><div class="k">Persönlich laufend</div><div class="v ${persCls}">${eur(m.sonstige)}</div></div>
+        </div>
         <div class="plan-section">
-          <h4>Topf · ${escapeHtml(monthName(summaryMonth))}</h4>
+          <h4>Topf</h4>
           ${row('Sparrate', m.sparrate)}
           ${m.extra ? row('＋ Extra-Einzahlungen', m.extra, m.herkunft ? ` <span class="muted-note">(${escapeHtml(m.herkunft)})</span>` : '') : ''}
           ${row('− Entnahmen', m.entnahmen, m.ungeplant ? ` <span class="target-bad" style="font-size:0.75rem;">(davon ungeplant ${fmtEur(m.ungeplant)})</span>` : '')}
@@ -1497,7 +1496,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="sum-row total"><span>Netto im Topf <span class="plan-status ${ok ? 'ok' : 'bad'}">${ok ? 'stabil' : 'schrumpft'}</span></span><span class="val">${eur(m.netto)}</span></div>
         </div>
         <div class="plan-section">
-          <h4>Deine Ausgaben im Monat</h4>
+          <h4>Deine Ausgaben</h4>
           ${row('Persönlich laufend', m.sonstige, targetSpan(m.sonstige, t.sonstige, t.sonstigeMax))}
           ${row('⭐ Persönlich Sonderausgaben', m.sonder)}
           ${row('Kleidung', m.kleidung)}
@@ -1507,21 +1506,44 @@ document.addEventListener('DOMContentLoaded', () => {
           ${row('ETF inkl. Noah', m.etf)}
         </div>`;
     }
+    const monthHtml = `
+      <div class="plan-block ist">
+        <div class="plan-block-head">
+          <span class="plan-tag">Ist</span>
+          <span class="plan-block-title">${escapeHtml(monthName(summaryMonth))}</span>
+        </div>
+        <div class="plan-block-sub">Tatsächliche Werte dieses Monats. Ändern sich mit der Monatswahl oben.</div>
+        ${monthBody}
+      </div>`;
 
+    // Block 2: Planrechnung für einen Durchschnittsmonat (unabhängig von der Monatswahl)
     const calc = `
-      <div class="plan-section">
-        <h4>Planrechnung pro Monat</h4>
-        ${row('Gehalt + Kindergeld', (p.netto || 0) + (p.kindergeld || 0))}
-        ${row('− Laufende Fixkosten & Sparen', p.fixkosten)}
-        ${row('− Ø Familie variabel (von dir)', p.familie)}
-        ${row('− Ø Persönlich ohne Sonderausgaben', p.alltag)}
-        <div class="sum-row total"><span>Freiraum für Sonderausgaben & Anschaffungen</span><span class="val">${eur(p.freiraum)}</span></div>
-        ${p.sonderSchnitt !== null && p.sonderSchnitt !== undefined ? `<div class="muted-note" style="text-align:left;">Zum Vergleich: Ø Persönlich Sonderausgaben + ½ gemeinsame Sonderzahlungen der letzten 3 Monate ${fmtEur(p.sonderSchnitt)}.</div>` : ''}
-        <h4>Topf (Sparrate)</h4>
-        ${row('Sparrate', p.sparrate)}
-        ${row('− Rücklage Sonderzahlungen', p.ruecklage)}
-        ${row('− Reisebudget (dein Anteil)', p.reisebudget)}
-        <div class="sum-row total"><span>Rest für Anschaffungen & Extras</span><span class="val">${eur(p.topfRest)}</span></div>
+      <div class="plan-block plan">
+        <div class="plan-block-head">
+          <span class="plan-tag">Plan</span>
+          <span class="plan-block-title">Durchschnittsmonat</span>
+        </div>
+        <div class="plan-block-sub">Was in einem Monat mit durchschnittlichen variablen Kosten übrig bleibt. Gilt für jeden Monat gleich.</div>
+        <div class="small-kpis two">
+          <div class="small-kpi"><div class="k">Freiraum / Monat</div><div class="v ${p.freiraum < 0 ? 'target-bad' : 'target-ok'}">${eur(p.freiraum)}</div></div>
+          <div class="small-kpi"><div class="k">Ø Persönlich o. Sonder</div><div class="v">${eur(p.alltag)}</div></div>
+        </div>
+        <div class="plan-section">
+          <h4>So entsteht der Freiraum</h4>
+          ${row('Gehalt + Kindergeld', (p.netto || 0) + (p.kindergeld || 0))}
+          ${row('− Laufende Fixkosten & Sparen', p.fixkosten)}
+          ${row('− Ø Familie variabel (von dir)', p.familie)}
+          ${row('− Ø Persönlich ohne Sonderausgaben', p.alltag)}
+          <div class="sum-row total"><span>Freiraum für Sonderausgaben & Anschaffungen</span><span class="val">${eur(p.freiraum)}</span></div>
+          ${p.sonderSchnitt !== null && p.sonderSchnitt !== undefined ? `<div class="muted-note" style="text-align:left;">Zum Vergleich: Ø Persönlich Sonderausgaben + ½ gemeinsame Sonderzahlungen der letzten 3 Monate ${fmtEur(p.sonderSchnitt)}.</div>` : ''}
+        </div>
+        <div class="plan-section">
+          <h4>So verteilt sich die Sparrate im Topf</h4>
+          ${row('Sparrate', p.sparrate)}
+          ${row('− Rücklage Sonderzahlungen', p.ruecklage)}
+          ${row('− Reisebudget (dein Anteil)', p.reisebudget)}
+          <div class="sum-row total"><span>Rest für Anschaffungen & Extras</span><span class="val">${eur(p.topfRest)}</span></div>
+        </div>
       </div>`;
 
     const saldo = planData.saldoSonja || 0;
@@ -1529,7 +1551,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? `<div class="settle">🛋️ Gemeinsame Sonderzahlungen: <strong>${saldo > 0 ? 'Sonja → Sascha' : 'Sascha → Sonja'}: ${fmtEur(Math.abs(saldo))}</strong> offen</div>`
       : '';
     const when = planData.generatedAt ? new Date(planData.generatedAt) : null;
-    summaryPlan.innerHTML = kpis + monthHtml + calc + saldoHtml +
+    summaryPlan.innerHTML = monthHtml + calc + saldoHtml +
       `<div class="muted-note" style="text-align:left;">Aus deinem Sheet „Finanzplan“${when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}. Nur auf diesem Gerät sichtbar.</div>`;
   }
 
