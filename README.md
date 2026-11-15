@@ -4,6 +4,10 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
+## 🆕 Version 3.13 (App) / 3.12 (Backend) – November 2026
+- Finanzplan-Karte: neuer Block **„Spielraum für Sonderausgaben“** – Freiraum aus dem Gehalt ＋ Topf-Rest = Spielraum, minus Ø tatsächlich ausgegebene Sonderausgaben und ½ gemeinsame Sonderzahlungen = Puffer, jeweils Ø 3 und 6 abgeschlossene Monate.
+- Backend liest dafür den gleichnamigen Block aus „Sascha Monats-Fixkostenübersicht“.
+
 ## ✨ Features
 - **Mobile-First & Schnell:** Öffnet sich in unter 0,3 Sekunden, fühlt sich wie eine native App an.
 - **Gerätepersonalisierung:** Merkt sich pro Smartphone den Standard-Erfasser (**Sascha** oder **Sonja**) via `localStorage`.

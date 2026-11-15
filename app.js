@@ -1,6 +1,7 @@
 /**
  * Kostentracker PWA - Client Logic
  *
+ * Neu in v3.13: Finanzplan-Karte mit Block „Spielraum für Sonderausgaben“ (Ø 3 und 6 Monate, Puffer)
  * Neu in v3.10: App-Standard – hell/dunkel nach Systemeinstellung, einheitliche Schrift und Farbvariablen,
  *   Einstellungen wie in Trainingslog/Ernährungslog; Versionsnummer nur noch in APP_VERSION (+ sw.js, index.html)
  * Neu in v3.9: Typ „Anschaffung“ heißt sichtbar „Gemeinsam einmalig“ (Anschaffung, BK-Abrechnung …);
@@ -41,7 +42,7 @@
 
 // Einzige Stelle für die App-Version in app.js. Bei jeder Änderung auch CACHE_NAME in sw.js
 // und ?v= am app.js-Script-Tag in index.html/tracker.html hochzählen.
-const APP_VERSION = '3.12';
+const APP_VERSION = '3.13';
 
 document.addEventListener('DOMContentLoaded', () => {
   { const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; }
@@ -1535,7 +1536,6 @@ document.addEventListener('DOMContentLoaded', () => {
           ${row('− Ø Familie variabel (von dir)', p.familie)}
           ${row('− Ø Persönlich ohne Sonderausgaben', p.alltag)}
           <div class="sum-row total"><span>Freiraum für Sonderausgaben & Anschaffungen</span><span class="val">${eur(p.freiraum)}</span></div>
-          ${p.sonderSchnitt !== null && p.sonderSchnitt !== undefined ? `<div class="muted-note" style="text-align:left;">Zum Vergleich: Ø Persönlich Sonderausgaben + ½ gemeinsame Sonderzahlungen der letzten 3 Monate ${fmtEur(p.sonderSchnitt)}.</div>` : ''}
         </div>
         <div class="plan-section">
           <h4>So verteilt sich die Sparrate im Topf</h4>
@@ -1546,12 +1546,42 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>`;
 
+    // Block 3: Spielraum für Sonderausgaben (Ø 3 und 6 abgeschlossene Monate)
+    let spielHtml = '';
+    if (p.spielraum && p.spielraum.m3 && p.spielraum.m6) {
+      const a = p.spielraum.m3, b = p.spielraum.m6;
+      const pf = (v) => (v === null || v === undefined) ? '–'
+        : `<span class="${v < 0 ? 'target-bad' : 'target-ok'}">${v > 0 ? '+' : ''}${fmtEur(v)}</span>`;
+      const r = (label, x, y, cls = '') => `<tr class="${cls}"><td>${label}</td><td>${x}</td><td>${y}</td></tr>`;
+      spielHtml = `
+      <div class="plan-block plan">
+        <div class="plan-block-head">
+          <span class="plan-tag">Plan</span>
+          <span class="plan-block-title">Spielraum für Sonderausgaben</span>
+        </div>
+        <div class="plan-block-sub">Was dir im Schnitt pro Monat für ⭐ Sonderausgaben und deine Hälfte gemeinsamer Sonderzahlungen zur Verfügung steht – aus Gehalt und Topf – und was du tatsächlich ausgegeben hast.</div>
+        <div class="small-kpis two">
+          <div class="small-kpi"><div class="k">Spielraum Ø 3 Mon.</div><div class="v">${eur(a.gesamt)}</div></div>
+          <div class="small-kpi"><div class="k">Puffer Ø 3 Mon.</div><div class="v">${pf(a.puffer)}</div></div>
+        </div>
+        <table class="plan-grid">
+          <tr><th></th><th>Ø 3 Mon.</th><th>Ø 6 Mon.</th></tr>
+          ${r('Freiraum aus dem Gehalt', eur(a.freiraum), eur(b.freiraum))}
+          ${r('＋ Topf-Rest', eur(a.topfRest), eur(b.topfRest))}
+          ${r('= Spielraum gesamt', eur(a.gesamt), eur(b.gesamt), 'strong')}
+          ${r('− Ø ausgegeben', eur(a.ist), eur(b.ist))}
+          ${r('= Puffer', pf(a.puffer), pf(b.puffer), 'strong')}
+        </table>
+        <div class="muted-note" style="text-align:left;">Ausgegeben = ⭐ Persönlich Sonderausgaben + ½ gemeinsame Sonderzahlungen. Minus beim Puffer: Der Topf schrumpft im Schnitt um diesen Betrag. Topf-Rest = Sparrate − Rücklage − Reisebudget.</div>
+      </div>`;
+    }
+
     const saldo = planData.saldoSonja || 0;
     const saldoHtml = Math.abs(saldo) >= 0.01
       ? `<div class="settle">🛋️ Gemeinsame Sonderzahlungen: <strong>${saldo > 0 ? 'Sonja → Sascha' : 'Sascha → Sonja'}: ${fmtEur(Math.abs(saldo))}</strong> offen</div>`
       : '';
     const when = planData.generatedAt ? new Date(planData.generatedAt) : null;
-    summaryPlan.innerHTML = monthHtml + calc + saldoHtml +
+    summaryPlan.innerHTML = monthHtml + calc + spielHtml + saldoHtml +
       `<div class="muted-note" style="text-align:left;">Aus deinem Sheet „Finanzplan“${when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}. Nur auf diesem Gerät sichtbar.</div>`;
   }
 

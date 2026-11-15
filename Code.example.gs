@@ -4,6 +4,10 @@
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
  *
+ * Neu in v3.12:
+ *  - Finanzplan liefert den Block „Spielraum für Sonderausgaben“ (Ø 3 und 6 Monate):
+ *    Freiraum aus dem Gehalt + Topf-Rest = Spielraum, minus Ø tatsächlich = Puffer.
+ *
  * Neu in v3.9:
  *  - Reiter im Finanzplan heißt „Gemeinsame Sonderzahlungen“ (alter Name „Gemeinsame Anschaffungen“
  *    wird weiter erkannt); Saldo wird über die Beschriftung „Saldo gesamt“ gefunden.
@@ -80,7 +84,7 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.11"
+  VERSION: "3.12"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
@@ -656,7 +660,7 @@ function planNum(v) {
 /** Sucht in einer Spalte die erste Zeile, deren Text mit einem der Präfixe beginnt, und liefert den Wert daneben. */
 function findByLabel(values, labelCol, valueCol, prefixes) {
   for (let i = 0; i < values.length; i++) {
-    const label = String(values[i][labelCol] || "").replace(/^[−\-\s]+/, "").trim().toLowerCase();
+    const label = String(values[i][labelCol] || "").replace(/^[−\-＋+\s]+/, "").trim().toLowerCase();
     for (let j = 0; j < prefixes.length; j++) {
       if (label.indexOf(prefixes[j].toLowerCase()) === 0) return planNum(values[i][valueCol]);
     }
@@ -715,7 +719,7 @@ function buildPlanResponse() {
   }
 
   // Monatsbilanz und Topf-Block aus der Fixkostenübersicht (über die Beschriftungen)
-  const fx = sh("Sascha Monats-Fixkostenübersicht").getRange(1, 1, 16, 7).getValues();
+  const fx = sh("Sascha Monats-Fixkostenübersicht").getRange(1, 1, 30, 7).getValues();
   const plan = {
     netto: findByLabel(fx, 0, 1, ["Nettogehalt"]),
     kindergeld: findByLabel(fx, 0, 1, ["Kindergeld"]),
@@ -729,6 +733,21 @@ function buildPlanResponse() {
     reisebudget: findByLabel(fx, 3, 6, ["Reisebudget"]),
     topfRest: findByLabel(fx, 3, 6, ["Topf-Rest für Anschaffungen"])
   };
+
+  const spielraum = {};
+  [["m3", 1], ["m6", 2]].forEach(function (pair) {
+    const vc = pair[1];
+    spielraum[pair[0]] = {
+      familie: findByLabel(fx, 0, vc, ["Ø Familie variabel"]),
+      alltag: findByLabel(fx, 0, vc, ["Ø Persönlich laufend + Kleidung"]),
+      freiraum: findByLabel(fx, 0, vc, ["Freiraum aus dem Gehalt"]),
+      topfRest: findByLabel(fx, 0, vc, ["Topf-Rest (Sparrate"]),
+      gesamt: findByLabel(fx, 0, vc, ["Spielraum gesamt"]),
+      ist: findByLabel(fx, 0, vc, ["Ø tatsächlich"]),
+      puffer: findByLabel(fx, 0, vc, ["Puffer pro Monat"])
+    };
+  });
+  plan.spielraum = spielraum.m3.gesamt === null ? null : spielraum;
 
   const ein = sh("Einstellungen").getRange(1, 1, 20, 2).getValues();
   const targets = {
