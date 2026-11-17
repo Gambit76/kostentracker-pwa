@@ -4,6 +4,11 @@
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
  *
+ * Neu in v3.13:
+ *  - Finanzplan liefert Alltagspuffer (Ø 3 / 6 Monate), Anschaffungen (Ø 6 / 12 Monate, persönlich ⭐ und
+ *    ½ gemeinsam) und den Restpuffer (Alltagspuffer Ø 3 Mon. − Anschaffungen Ø 12 Mon.). Der Block
+ *    „Spielraum für Sonderausgaben“ entfällt. Namen wie in „Sascha Monats-Fixkostenübersicht“.
+ *
  * Neu in v3.12:
  *  - Finanzplan liefert den Block „Spielraum für Sonderausgaben“ (Ø 3 und 6 Monate):
  *    Freiraum aus dem Gehalt + Topf-Rest = Spielraum, minus Ø tatsächlich = Puffer.
@@ -84,7 +89,7 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.12"
+  VERSION: "3.13"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
@@ -725,29 +730,36 @@ function buildPlanResponse() {
     kindergeld: findByLabel(fx, 0, 1, ["Kindergeld"]),
     fixkosten: findByLabel(fx, 0, 1, ["Laufende Fixkosten"]),
     familie: findByLabel(fx, 0, 1, ["Variable Familienkosten"]),
-    alltag: findByLabel(fx, 0, 1, ["Ø Persönlich ohne Sonderausgaben", "Ø persönliche Alltagskosten", "Ø persönliche variable"]),
-    freiraum: findByLabel(fx, 0, 1, ["Freiraum pro Monat"]),
-    sonderSchnitt: findByLabel(fx, 0, 1, ["Zum Vergleich"]),
+    alltag: findByLabel(fx, 0, 1, ["Ø Persönlich Alltag (3", "Ø Persönlich ohne Sonderausgaben", "Ø persönliche Alltagskosten", "Ø persönliche variable"]),
+    freiraum: findByLabel(fx, 0, 1, ["Alltagspuffer pro Monat", "Freiraum pro Monat"]),
+    anschaffungenSchnitt: findByLabel(fx, 0, 1, ["Ø Anschaffungen pro Monat", "Zum Vergleich"]),
+    restpuffer: findByLabel(fx, 0, 1, ["Restpuffer nach Anschaffungen"]),
     ruecklage: findByLabel(fx, 3, 6, ["Rücklage pro Monat"]),
     sparrate: findByLabel(fx, 3, 6, ["Sparrate Topf"]),
     reisebudget: findByLabel(fx, 3, 6, ["Reisebudget"]),
     topfRest: findByLabel(fx, 3, 6, ["Topf-Rest für Anschaffungen"])
   };
 
-  const spielraum = {};
+  // Alltagspuffer (Ø 3 / 6 Monate) und Anschaffungen (Ø 6 / 12 Monate) aus dem Block ab Zeile 14.
+  // Ab Zeile 14, damit „Alltagspuffer“ nicht die Zeile „Alltagspuffer pro Monat“ oben trifft.
+  const blk = fx.slice(13);
+  const puffer = {};
   [["m3", 1], ["m6", 2]].forEach(function (pair) {
-    const vc = pair[1];
-    spielraum[pair[0]] = {
-      familie: findByLabel(fx, 0, vc, ["Ø Familie variabel"]),
-      alltag: findByLabel(fx, 0, vc, ["Ø Persönlich laufend + Kleidung"]),
-      freiraum: findByLabel(fx, 0, vc, ["Freiraum aus dem Gehalt"]),
-      topfRest: findByLabel(fx, 0, vc, ["Topf-Rest (Sparrate"]),
-      gesamt: findByLabel(fx, 0, vc, ["Spielraum gesamt"]),
-      ist: findByLabel(fx, 0, vc, ["Ø tatsächlich"]),
-      puffer: findByLabel(fx, 0, vc, ["Puffer pro Monat"])
+    puffer[pair[0]] = {
+      familie: findByLabel(blk, 0, pair[1], ["Ø Familie variabel"]),
+      alltag: findByLabel(blk, 0, pair[1], ["Ø Persönlich Alltag"]),
+      puffer: findByLabel(blk, 0, pair[1], ["Alltagspuffer"])
     };
   });
-  plan.spielraum = spielraum.m3.gesamt === null ? null : spielraum;
+  plan.puffer = puffer.m3.puffer === null ? null : puffer;
+  const anschaffungen = {};
+  [["m6", 1], ["m12", 2]].forEach(function (pair) {
+    anschaffungen[pair[0]] = {
+      pers: findByLabel(blk, 0, pair[1], ["Ø persönliche Anschaffungen"]),
+      gem: findByLabel(blk, 0, pair[1], ["Ø gemeinsame Anschaffungen"])
+    };
+  });
+  plan.anschaffungen = anschaffungen.m6.pers === null ? null : anschaffungen;
 
   const ein = sh("Einstellungen").getRange(1, 1, 20, 2).getValues();
   const targets = {

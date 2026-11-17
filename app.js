@@ -1,6 +1,8 @@
 /**
  * Kostentracker PWA - Client Logic
  *
+ * Neu in v3.14: Durchschnittsmonat mit Alltagspuffer, Anschaffungen (Ø 6 / 12 Monate) und Restpuffer – gleiche Zahlen
+ *   und Namen wie im Dashboard Sascha; „Sonderausgabe“ heißt jetzt „Anschaffung“ (⭐ Persönliche Anschaffung)
  * Neu in v3.13: Finanzplan-Karte mit Block „Spielraum für Sonderausgaben“ (Ø 3 und 6 Monate, Puffer)
  * Neu in v3.10: App-Standard – hell/dunkel nach Systemeinstellung, einheitliche Schrift und Farbvariablen,
  *   Einstellungen wie in Trainingslog/Ernährungslog; Versionsnummer nur noch in APP_VERSION (+ sw.js, index.html)
@@ -42,7 +44,7 @@
 
 // Einzige Stelle für die App-Version in app.js. Bei jeder Änderung auch CACHE_NAME in sw.js
 // und ?v= am app.js-Script-Tag in index.html/tracker.html hochzählen.
-const APP_VERSION = '3.13';
+const APP_VERSION = '3.14';
 
 document.addEventListener('DOMContentLoaded', () => {
   { const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; }
@@ -877,7 +879,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const result = await apiPost(payload);
       if (result && result.success) {
         if (navigator.vibrate) navigator.vibrate([40, 50, 40]);
-        const label = isSpecial ? 'Persönlich Sonderausgabe gespeichert'
+        const label = isSpecial ? 'Persönliche Anschaffung gespeichert'
           : currentType === TYPE_PERSONAL ? 'Persönlich gespeichert'
           : currentType === TYPE_TRIP ? `Reise ${trip}`
           : currentType === TYPE_SHARED ? 'Gemeinsam einmalig gespeichert' : 'Im Sheet gespeichert';
@@ -1026,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isTrip = entry.type === TYPE_TRIP;
     const isShared = entry.type === TYPE_SHARED;
     const meta = [entry.paidBy];
-    if (personal) meta.push(entry.special ? 'Persönlich · ⭐ Sonderausgabe' : 'Persönlich');
+    if (personal) meta.push(entry.special ? 'Persönlich · ⭐ Anschaffung' : 'Persönlich');
     if (isTrip) meta.push('✈️ ' + (entry.trip || 'Reise'));
     if (isShared) meta.push('🛋️ Gemeinsam einmalig (je 50 %)');
     if (entry.comment) meta.push(entry.comment);
@@ -1499,10 +1501,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="plan-section">
           <h4>Deine Ausgaben</h4>
           ${row('Persönlich laufend', m.sonstige, targetSpan(m.sonstige, t.sonstige, t.sonstigeMax))}
-          ${row('⭐ Persönlich Sonderausgaben', m.sonder)}
+          ${row('⭐ Persönliche Anschaffungen', m.sonder)}
           ${row('Kleidung', m.kleidung)}
           ${row('Bargeld', m.bargeld, targetSpan(m.bargeld, t.bargeld))}
-          ${row('½ gemeinsame Sonderzahlungen', m.gemeinsam)}
+          ${row('½ gemeinsame Anschaffungen', m.gemeinsam)}
           ${row('Lebensmittel (von dir bezahlt)', m.lebensmittel, targetSpan(m.lebensmittel, t.lebensmittel))}
           ${row('ETF inkl. Noah', m.etf)}
         </div>`;
@@ -1518,6 +1520,51 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>`;
 
     // Block 2: Planrechnung für einen Durchschnittsmonat (unabhängig von der Monatswahl)
+    // Gleiche Zahlen und Namen wie „Dashboard Sascha“ und „Sascha Monats-Fixkostenübersicht“.
+    const pf = (v) => (v === null || v === undefined) ? '–'
+      : `<span class="${v < 0 ? 'target-bad' : 'target-ok'}">${v > 0 ? '+' : ''}${fmtEur(v)}</span>`;
+    const g = (label, x, y, cls = '') => `<tr class="${cls}"><td>${label}</td><td>${x}</td><td>${y}</td></tr>`;
+    const al = p.puffer && p.puffer.m3 && p.puffer.m6 ? p.puffer : null;
+    const an = p.anschaffungen && p.anschaffungen.m6 && p.anschaffungen.m12 ? p.anschaffungen : null;
+    const base = (p.netto || 0) + (p.kindergeld || 0) - (p.fixkosten || 0);
+    const alltagHtml = al ? `
+        <div class="plan-section">
+          <h4>So entsteht der Alltagspuffer</h4>
+          <table class="plan-grid">
+            <tr><th></th><th>Ø 3 Mon.</th><th>Ø 6 Mon.</th></tr>
+            ${g('Gehalt + Kindergeld − laufende Fixkosten & Sparen', eur(base), eur(base))}
+            ${g('− Ø Familie variabel (von dir)', eur(al.m3.familie), eur(al.m6.familie))}
+            ${g('− Ø Persönlich Alltag', eur(al.m3.alltag), eur(al.m6.alltag))}
+            ${g('= Alltagspuffer', pf(al.m3.puffer), pf(al.m6.puffer), 'strong')}
+          </table>
+        </div>` : `
+        <div class="plan-section">
+          <h4>So entsteht der Alltagspuffer</h4>
+          ${row('Gehalt + Kindergeld', (p.netto || 0) + (p.kindergeld || 0))}
+          ${row('− Laufende Fixkosten & Sparen', p.fixkosten)}
+          ${row('− Ø Familie variabel (von dir)', p.familie)}
+          ${row('− Ø Persönlich Alltag', p.alltag)}
+          <div class="sum-row total"><span>Alltagspuffer</span><span class="val">${eur(p.freiraum)}</span></div>
+        </div>`;
+    const anschHtml = an ? (() => {
+      const pers6 = an.m6.pers, pers12 = an.m12.pers, gem6 = an.m6.gem, gem12 = an.m12.gem;
+      const rest = (p.restpuffer !== null && p.restpuffer !== undefined) ? p.restpuffer : (p.freiraum - pers12 - gem12);
+      return `
+        <div class="plan-section">
+          <h4>Anschaffungen und Restpuffer</h4>
+          <table class="plan-grid">
+            <tr><th></th><th>Ø 6 Mon.</th><th>Ø 12 Mon.</th></tr>
+            ${g('⭐ Persönliche Anschaffungen', eur(pers6), eur(pers12))}
+            ${g('½ Gemeinsame Anschaffungen', eur(gem6), eur(gem12))}
+            ${g('= Anschaffungen gesamt', eur(pers6 + gem6), eur(pers12 + gem12), 'strong')}
+          </table>
+          ${row('Alltagspuffer (Ø 3 Mon.)', p.freiraum)}
+          ${row('− Anschaffungen (Ø 12 Mon.)', pers12 + gem12)}
+          <div class="sum-row total"><span>Restpuffer nach Anschaffungen</span><span class="val">${pf(rest)}</span></div>
+          <div class="muted-note" style="text-align:left;">Alltag über 3 Monate, weil du ihn schnell steuern kannst. Anschaffungen über 12 Monate, damit einzelne große Käufe das Bild nicht verzerren. Minus = Anschaffungen belasten den Alltagspuffer.</div>
+        </div>`;
+    })() : '';
+    const restKpi = (p.restpuffer !== null && p.restpuffer !== undefined) ? p.restpuffer : null;
     const calc = `
       <div class="plan-block plan">
         <div class="plan-block-head">
@@ -1526,17 +1573,13 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="plan-block-sub">Was in einem Monat mit durchschnittlichen variablen Kosten übrig bleibt. Gilt für jeden Monat gleich.</div>
         <div class="small-kpis two">
-          <div class="small-kpi"><div class="k">Freiraum / Monat</div><div class="v ${p.freiraum < 0 ? 'target-bad' : 'target-ok'}">${eur(p.freiraum)}</div></div>
-          <div class="small-kpi"><div class="k">Ø Persönlich o. Sonder</div><div class="v">${eur(p.alltag)}</div></div>
+          <div class="small-kpi"><div class="k">Alltagspuffer / Monat</div><div class="v ${p.freiraum < 0 ? 'target-bad' : 'target-ok'}">${eur(p.freiraum)}</div></div>
+          ${restKpi !== null
+            ? `<div class="small-kpi"><div class="k">Restpuffer nach Anschaffungen</div><div class="v">${pf(restKpi)}</div></div>`
+            : `<div class="small-kpi"><div class="k">Ø Persönlich Alltag</div><div class="v">${eur(p.alltag)}</div></div>`}
         </div>
-        <div class="plan-section">
-          <h4>So entsteht der Freiraum</h4>
-          ${row('Gehalt + Kindergeld', (p.netto || 0) + (p.kindergeld || 0))}
-          ${row('− Laufende Fixkosten & Sparen', p.fixkosten)}
-          ${row('− Ø Familie variabel (von dir)', p.familie)}
-          ${row('− Ø Persönlich ohne Sonderausgaben', p.alltag)}
-          <div class="sum-row total"><span>Freiraum für Sonderausgaben & Anschaffungen</span><span class="val">${eur(p.freiraum)}</span></div>
-        </div>
+        ${alltagHtml}
+        ${anschHtml}
         <div class="plan-section">
           <h4>So verteilt sich die Sparrate im Topf</h4>
           ${row('Sparrate', p.sparrate)}
@@ -1546,42 +1589,12 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>`;
 
-    // Block 3: Spielraum für Sonderausgaben (Ø 3 und 6 abgeschlossene Monate)
-    let spielHtml = '';
-    if (p.spielraum && p.spielraum.m3 && p.spielraum.m6) {
-      const a = p.spielraum.m3, b = p.spielraum.m6;
-      const pf = (v) => (v === null || v === undefined) ? '–'
-        : `<span class="${v < 0 ? 'target-bad' : 'target-ok'}">${v > 0 ? '+' : ''}${fmtEur(v)}</span>`;
-      const r = (label, x, y, cls = '') => `<tr class="${cls}"><td>${label}</td><td>${x}</td><td>${y}</td></tr>`;
-      spielHtml = `
-      <div class="plan-block plan">
-        <div class="plan-block-head">
-          <span class="plan-tag">Plan</span>
-          <span class="plan-block-title">Spielraum für Sonderausgaben</span>
-        </div>
-        <div class="plan-block-sub">Was dir im Schnitt pro Monat für ⭐ Sonderausgaben und deine Hälfte gemeinsamer Sonderzahlungen zur Verfügung steht – aus Gehalt und Topf – und was du tatsächlich ausgegeben hast.</div>
-        <div class="small-kpis two">
-          <div class="small-kpi"><div class="k">Spielraum Ø 3 Mon.</div><div class="v">${eur(a.gesamt)}</div></div>
-          <div class="small-kpi"><div class="k">Puffer Ø 3 Mon.</div><div class="v">${pf(a.puffer)}</div></div>
-        </div>
-        <table class="plan-grid">
-          <tr><th></th><th>Ø 3 Mon.</th><th>Ø 6 Mon.</th></tr>
-          ${r('Freiraum aus dem Gehalt', eur(a.freiraum), eur(b.freiraum))}
-          ${r('＋ Topf-Rest', eur(a.topfRest), eur(b.topfRest))}
-          ${r('= Spielraum gesamt', eur(a.gesamt), eur(b.gesamt), 'strong')}
-          ${r('− Ø ausgegeben', eur(a.ist), eur(b.ist))}
-          ${r('= Puffer', pf(a.puffer), pf(b.puffer), 'strong')}
-        </table>
-        <div class="muted-note" style="text-align:left;">Ausgegeben = ⭐ Persönlich Sonderausgaben + ½ gemeinsame Sonderzahlungen. Minus beim Puffer: Der Topf schrumpft im Schnitt um diesen Betrag. Topf-Rest = Sparrate − Rücklage − Reisebudget.</div>
-      </div>`;
-    }
-
     const saldo = planData.saldoSonja || 0;
     const saldoHtml = Math.abs(saldo) >= 0.01
       ? `<div class="settle">🛋️ Gemeinsame Sonderzahlungen: <strong>${saldo > 0 ? 'Sonja → Sascha' : 'Sascha → Sonja'}: ${fmtEur(Math.abs(saldo))}</strong> offen</div>`
       : '';
     const when = planData.generatedAt ? new Date(planData.generatedAt) : null;
-    summaryPlan.innerHTML = monthHtml + calc + spielHtml + saldoHtml +
+    summaryPlan.innerHTML = monthHtml + calc + saldoHtml +
       `<div class="muted-note" style="text-align:left;">Aus deinem Sheet „Finanzplan“${when ? ` · Stand ${when.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}. Nur auf diesem Gerät sichtbar.</div>`;
   }
 
@@ -1730,13 +1743,13 @@ document.addEventListener('DOMContentLoaded', () => {
       .filter(e => e.special && e.type === TYPE_PERSONAL && e.paidBy === currentPayer && e.iso && e.iso.slice(0, 7) === summaryMonth)
       .reduce((a, e) => a + (Number(e.amount) || 0), 0);
     const sonderRow = sonderOwn > 0
-      ? `<div class="sum-row" style="font-size:0.88rem;"><span>davon ⭐ Persönlich Sonderausgaben</span><span class="val">${fmtEur(sonderOwn)}</span></div>`
+      ? `<div class="sum-row" style="font-size:0.88rem;"><span>davon ⭐ Persönliche Anschaffungen</span><span class="val">${fmtEur(sonderOwn)}</span></div>`
       : '';
     const sharedTotal = Object.values(m.shared || {}).reduce((a, b) => a + b, 0);
     const sharedHalf = sharedTotal / 2;
     const ownTotal = (m.personal[currentPayer] || 0) + sharedHalf;
     const sharedRows = sharedTotal > 0
-      ? `<div class="sum-row" style="font-size:0.88rem;"><span>＋ ½ gemeinsame Sonderzahlungen</span><span class="val">${fmtEur(sharedHalf)}</span></div>
+      ? `<div class="sum-row" style="font-size:0.88rem;"><span>＋ ½ gemeinsame Anschaffungen</span><span class="val">${fmtEur(sharedHalf)}</span></div>
          <div class="sum-row total"><span>Deine Kosten (${currentPayer})</span><span class="val">${fmtEur(ownTotal)}</span></div>`
       : '';
     summaryPersonal.innerHTML = personRows + sonderRow + sharedRows +
@@ -1744,7 +1757,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `<div class="muted-note" style="text-align:left;">Ø pro Monat (12 Monate): Familie ${fmtEur(avgF)} · Persönlich ${currentPayer} ${fmtEur(avgP)}</div>`;
     summaryPersonal.innerHTML += sixMonthHtml('personal', {
       title: '📅 Letzte 6 Monate', colorSa: 'var(--c-per)', colorSo: 'var(--c-per-2)',
-      note: 'Nur Typ „Persönlich“ (ohne ½ gemeinsame Sonderzahlungen).'
+      note: 'Nur Typ „Persönlich“ (ohne ½ gemeinsame Anschaffungen).'
     });
 
     renderTotalTrend();

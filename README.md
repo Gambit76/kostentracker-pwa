@@ -4,7 +4,12 @@ Eine minimalistische, blitzschnelle Progressive Web App (PWA) zur Erfassung von 
 
 ---
 
-## 🆕 Version 3.13 (App) / 3.12 (Backend) – November 2026
+## 🆕 Version 3.14 (App) / 3.13 (Backend) – November 2026
+- **Übersicht → Durchschnittsmonat** zeigt jetzt dieselben Zahlen und Namen wie das Dashboard Sascha: **Alltagspuffer** (Ø 3 / 6 Monate), **Anschaffungen** (⭐ persönlich und ½ gemeinsam, Ø 6 / 12 Monate) und **Restpuffer nach Anschaffungen** (Alltagspuffer Ø 3 Mon. − Anschaffungen Ø 12 Mon.). Der Block „Spielraum für Sonderausgaben“ entfällt.
+- „Sonderausgabe“ heißt überall **„Anschaffung“**; der Haken heißt **„⭐ Persönliche Anschaffung“** (Spalte I im Sheet bleibt).
+- **Backend (`Code.gs`) neu bereitstellen**, sonst zeigt die Karte nur Alltagspuffer ohne Anschaffungen. Das Script liest die neuen Beschriftungen aus „Sascha Monats-Fixkostenübersicht“.
+
+## Version 3.13 (App) / 3.12 (Backend) – November 2026
 - Finanzplan-Karte: neuer Block **„Spielraum für Sonderausgaben“** – Freiraum aus dem Gehalt ＋ Topf-Rest = Spielraum, minus Ø tatsächlich ausgegebene Sonderausgaben und ½ gemeinsame Sonderzahlungen = Puffer, jeweils Ø 3 und 6 abgeschlossene Monate.
 - Backend liest dafür den gleichnamigen Block aus „Sascha Monats-Fixkostenübersicht“.
 
