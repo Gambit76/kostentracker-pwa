@@ -4,6 +4,10 @@
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
  *
+ * Neu in v3.14:
+ *  - Fix: Die Überschrift „Alltagspuffer & Anschaffungen“ wurde statt der Zeile „Alltagspuffer“ gefunden,
+ *    der Alltagspuffer stand deshalb in der App auf 0,00 €. Zeilen ohne Wert werden jetzt übersprungen.
+ *
  * Neu in v3.13:
  *  - Finanzplan liefert Alltagspuffer (Ø 3 / 6 Monate), Anschaffungen (Ø 6 / 12 Monate, persönlich ⭐ und
  *    ½ gemeinsam) und den Restpuffer (Alltagspuffer Ø 3 Mon. − Anschaffungen Ø 12 Mon.). Der Block
@@ -89,7 +93,7 @@ const CONFIG = {
   SUGGESTION_MONTHS: 24,    // Zeitraum für Positions-Vorschläge
   SUGGESTION_LIMIT: 60,
   TRIP_LIMIT: 12,           // so viele Reisen gehen an die App
-  VERSION: "3.13"
+  VERSION: "3.14"
 };
 
 const COL = { POSITION: 1, AMOUNT: 2, DATE: 3, PAID_BY: 4, COMMENT: 5, TYPE: 6, TRIP: 7, ID: 8, SPECIAL: 9 };
@@ -666,6 +670,8 @@ function planNum(v) {
 function findByLabel(values, labelCol, valueCol, prefixes) {
   for (let i = 0; i < values.length; i++) {
     const label = String(values[i][labelCol] || "").replace(/^[−\-＋+\s]+/, "").trim().toLowerCase();
+    // Zeilen ohne Wert (z. B. Überschriften wie „Alltagspuffer & Anschaffungen“) überspringen
+    if (values[i][valueCol] === "" || values[i][valueCol] == null) continue;
     for (let j = 0; j < prefixes.length; j++) {
       if (label.indexOf(prefixes[j].toLowerCase()) === 0) return planNum(values[i][valueCol]);
     }
