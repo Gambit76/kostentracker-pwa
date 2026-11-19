@@ -4,6 +4,11 @@
  * Tabellenblatt: "Familie Variable Kosten"
  * Spalten: A Position | B Betrag | C Datum | D Bezahlt von | E Kommentar | F Typ | G Reise | H ID | I Sonder
  *
+ * Neu in v3.15:
+ *  - Fix: Die Reiter im Finanzplan haben jetzt Emojis vor dem Namen („🟠 Monate“, „🟢 Entnahmen“ …).
+ *    Die Finanzplan-Abfrage findet Reiter deshalb über den Namen ohne führendes Emoji (findSheet),
+ *    sonst kam „Blatt „Monate“ im Finanzplan nicht gefunden“.
+ *
  * Neu in v3.14:
  *  - Fix: Die Überschrift „Alltagspuffer & Anschaffungen“ wurde statt der Zeile „Alltagspuffer“ gefunden,
  *    der Alltagspuffer stand deshalb in der App auf 0,00 €. Zeilen ohne Wert werden jetzt übersprungen.
@@ -679,11 +684,20 @@ function findByLabel(values, labelCol, valueCol, prefixes) {
   return null;
 }
 
+/** Findet einen Reiter im Finanzplan auch dann, wenn dem Namen ein Emoji vorangestellt ist (z. B. "🟠 Monate"). */
+function findSheet(ss, name) {
+  const exact = ss.getSheetByName(name);
+  if (exact) return exact;
+  return ss.getSheets().filter(function (s) {
+    return s.getName().replace(/^[^A-Za-zÄÖÜäöüß]+/, "").trim() === name;
+  })[0] || null;
+}
+
 function buildPlanResponse() {
   const ss = SpreadsheetApp.openById(CONFIG.FINANZPLAN_ID);
   const tz = ss.getSpreadsheetTimeZone();
   const sh = function (name) {
-    const x = ss.getSheetByName(name);
+    const x = findSheet(ss, name);
     if (!x) throw new Error('Blatt "' + name + '" im Finanzplan nicht gefunden.');
     return x;
   };
@@ -793,7 +807,7 @@ function buildPlanResponse() {
     withdrawals.sort(function (a, b) { return a.iso < b.iso ? 1 : -1; });
   }
 
-  const gemSheet = ss.getSheetByName("Gemeinsame Sonderzahlungen") || ss.getSheetByName("Gemeinsame Anschaffungen");
+  const gemSheet = findSheet(ss, "Gemeinsame Sonderzahlungen") || findSheet(ss, "Gemeinsame Anschaffungen");
   let saldoSonja = 0;
   if (gemSheet) {
     const top = gemSheet.getRange(1, 1, 4, 6).getValues();
